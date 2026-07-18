@@ -1,0 +1,80 @@
+# ==========================================================================
+#  soc-stack — Voie B : tourne directement sur l'HÔTE (pas de VM soc-lab).
+#
+#  Pour l'instant : PostgreSQL (backend des cas + données de l'app).
+#  TheHive / Cassandra / Elasticsearch sont VOLONTAIREMENT désactivés
+#  (contrainte RAM ~12 Go). Le playbook écrit les cas dans une table `cases`
+#  via l'interface CaseBackend. Pour réactiver TheHive plus tard :
+#  décommente le bloc ci-dessous et passe CASE_BACKEND=thehive dans .env.
+#
+#  Lancement :  cd infra/soc-stack && docker compose up -d
+# ==========================================================================
+name: soc-stack
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: soc-postgres
+    environment:
+      POSTGRES_DB: soc_autopilot
+      POSTGRES_USER: soc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definir POSTGRES_PASSWORD dans infra/soc-stack/.env}
+    ports:
+      - "127.0.0.1:5432:5432"     # exposé uniquement en local sur l'hôte (l'app tourne sur l'hôte)
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soc -d soc_autopilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------
+  # OPTIONNEL — TheHive (désactivé en Voie B pour économiser ~3 Go de RAM).
+  # Décommenter l'ensemble + passer CASE_BACKEND=thehive pour l'activer.
+  # ----------------------------------------------------------------------
+  # cassandra:
+  #   image: cassandra:4.1
+  #   container_name: cassandra
+  #   environment:
+  #     - MAX_HEAP_SIZE=512M
+  #     - HEAP_NEWSIZE=128M
+  #     - CASSANDRA_CLUSTER_NAME=thp
+  #   volumes: [ "cassandra-data:/var/lib/cassandra" ]
+  #   restart: unless-stopped
+  #
+  # elasticsearch-thehive:
+  #   image: elasticsearch:7.17.22
+  #   container_name: elasticsearch-thehive
+  #   environment:
+  #     - discovery.type=single-node
+  #     - xpack.security.enabled=false
+  #     - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+  #   volumes: [ "es-data:/usr/share/elasticsearch/data" ]
+  #   restart: unless-stopped
+  #
+  # thehive:
+  #   image: strangebee/thehive:5.2
+  #   container_name: thehive
+  #   depends_on: [cassandra, elasticsearch-thehive]
+  #   ports: [ "127.0.0.1:9000:9000" ]
+  #   environment:
+  #     - JVM_OPTS=-Xms1024M -Xmx1024M
+  #   command:
+  #     - --secret
+  #     - "changeme-generate-a-real-one"
+  #     - --cql-hostnames
+  #     - cassandra
+  #     - --index-backend
+  #     - elasticsearch
+  #     - --es-hostnames
+  #     - elasticsearch-thehive
+  #   volumes: [ "thehive-data:/opt/thp/thehive/data" ]
+  #   restart: unless-stopped
+
+volumes:
+  pg-data: {}
+  # cassandra-data: {}
+  # es-data: {}
+  # thehive-data: {}
