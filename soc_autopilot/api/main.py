@@ -45,4 +45,6 @@ app.mount("/metrics", make_asgi_app())
 
 @app.get("/health", tags=["ops"])
 async def health():
+    # nosemgrep: python.sqlalchemy.performance.performance-improvements.len-all-count
+    # PlaybookStore.all() renvoie une liste Python en mémoire, pas une requête SQLAlchemy.
     return {"status": "ok", "playbooks": len(app.state.playbooks.all())}
