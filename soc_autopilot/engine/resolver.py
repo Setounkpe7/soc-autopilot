@@ -30,18 +30,20 @@ def _coerce(result: str) -> Any:
     return result
 
 
+def _render_item(v: Any, context: dict[str, Any]) -> Any:
+    if isinstance(v, str):
+        return render(v, context)
+    if isinstance(v, dict):
+        return render_dict(v, context)
+    if isinstance(v, list):
+        return [_render_item(i, context) for i in v]
+    return v
+
+
 def render_dict(data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for k, v in data.items():
-        if isinstance(v, str):
-            out[k] = render(v, context)
-        elif isinstance(v, dict):
-            out[k] = render_dict(v, context)
-        elif isinstance(v, list):
-            out[k] = [render(i, context) if isinstance(i, str) else i for i in v]
-        else:
-            out[k] = v
-    return out
+    # Rend récursivement dicts ET listes-de-dicts : sinon les `boosters` de
+    # transform.score (liste de dicts avec `when`) ne seraient jamais résolus.
+    return {k: _render_item(v, context) for k, v in data.items()}
 
 
 def evaluate(expression: str | None, context: dict[str, Any]) -> bool:

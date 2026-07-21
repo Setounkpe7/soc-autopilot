@@ -1,7 +1,7 @@
 import pytest
 from jinja2.exceptions import SecurityError, UndefinedError
 
-from soc_autopilot.engine.resolver import evaluate, render
+from soc_autopilot.engine.resolver import evaluate, render, render_dict
 
 
 def test_render_simple():
@@ -43,3 +43,11 @@ def test_render_does_not_coerce_padded_ids():
 def test_evaluate_still_coerces_numeric_and_bool():
     assert evaluate("{{ v }}", {"v": "true"}) is True
     assert evaluate("{{ n }}", {"n": 0}) is False
+
+
+def test_render_dict_recurses_into_list_of_dicts():
+    """Les boosters (liste de dicts) doivent être rendus, pas laissés bruts."""
+    data = {"boosters": [{"when": "{{ flag }}", "points": 2}]}
+    out = render_dict(data, {"flag": True})
+    assert out["boosters"][0]["when"] == "True"
+    assert out["boosters"][0]["points"] == 2
