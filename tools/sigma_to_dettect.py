@@ -10,9 +10,14 @@ la carte de couverture ne peut donc jamais être périmée — elle est un produ
 """
 
 import json
+import re
 from pathlib import Path
 
 import yaml
+
+# Tag de TECHNIQUE : `attack.t` suivi d'un chiffre. Exclut les tags de TACTIQUE
+# numérotés (`attack.taNNNN`) qui commenceraient aussi par `attack.ta`.
+TECHNIQUE_TAG = re.compile(r"^attack\.t\d")
 
 DETECTIONS = Path("detections")
 OUT_DIR = Path("docs/coverage")
@@ -26,7 +31,7 @@ def collect() -> dict[str, list[dict]]:
     for path in rules:
         rule = yaml.safe_load(path.read_text(encoding="utf-8"))
         for tag in rule.get("tags", []):
-            if not tag.startswith("attack.t"):
+            if not TECHNIQUE_TAG.match(tag):
                 continue
             tid = tag.replace("attack.", "").upper()
             if "." in tid:

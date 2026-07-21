@@ -5,8 +5,9 @@
 > réel du repo, pas d'une intention. La couverture machine est **générée depuis les
 > tags ATT&CK des règles** par `tools/sigma_to_dettect.py` → `docs/coverage/`
 > (couche ATT&CK Navigator + fichier DeTT&CT). La CI **échoue si la carte est
-> périmée** (`git diff` sur `docs/coverage/`) : la couverture est un produit du code,
-> jamais un PowerPoint qui datait déjà le jour de la présentation.
+> périmée** — `git diff` sur la couche JSON (byte-déterministe) **et** tests de
+> contenu (`tests/detection/test_coverage.py`) sur les deux fichiers : la couverture
+> est un produit du code, jamais un PowerPoint qui datait déjà le jour de sa présentation.
 
 ## Couverture actuelle (règles réellement présentes dans `detections/`)
 
