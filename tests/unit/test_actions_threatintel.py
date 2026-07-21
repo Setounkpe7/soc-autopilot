@@ -1,5 +1,8 @@
 import inspect
 
+import httpx
+import respx
+
 from soc_autopilot.actions.threatintel import _vt_classify, extract_iocs
 from soc_autopilot.engine import registry
 
@@ -37,3 +40,26 @@ def test_no_file_upload_path_exists():
     # Le module ne fait QUE des GET : sans POST/PUT, aucun fichier ne peut être uploadé.
     assert ".post(" not in src
     assert ".put(" not in src
+
+
+@respx.mock
+async def test_rate_limited_verdict_is_not_cached(monkeypatch):
+    """Un 429 est un état client transitoire : ne jamais le cacher (sinon un IOC
+    malveillant serait masqué jusqu'au TTL)."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    monkeypatch.setenv("virustotal_api_key", "k")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+    import soc_autopilot.actions.threatintel as ti
+
+    ti._VT_CACHE.clear()
+    h = "a" * 64
+    respx.get(f"https://www.virustotal.com/api/v3/files/{h}").mock(
+        return_value=httpx.Response(429)
+    )
+    out = await ti.virustotal_lookup({"iocs": {"hashes": [h]}}, None)
+    assert out["results"][0]["reason"] == "rate_limited"
+    assert h not in ti._VT_CACHE  # jamais mis en cache

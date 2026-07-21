@@ -54,7 +54,10 @@ async def lookup(params: dict, ctx) -> dict:
 # Cache en mémoire { ioc: (verdict, timestamp) }. En prod : Redis avec TTL.
 _VT_CACHE: dict[str, tuple[dict, float]] = {}
 _VT_CACHE_TTL = 3600  # un verdict VT ne change pas en 1 h
-_VT_SEMAPHORE = asyncio.Semaphore(4)  # respecte le plafond 4 req/min de l'API gratuite
+# Borne la CONCURRENCE des appels VT (utile si les lookups étaient parallélisés).
+# Le plafond 4 req/min de l'API gratuite, lui, est absorbé par la gestion du 429
+# (verdict best-effort, jamais caché) — limite connue documentée au README.
+_VT_SEMAPHORE = asyncio.Semaphore(4)
 
 
 def _vt_classify(malicious: int, suspicious: int, total: int) -> str:
@@ -112,9 +115,12 @@ async def virustotal_lookup(params: dict, ctx) -> dict:
                         f"https://www.virustotal.com/api/v3/{endpoint}/{ioc}"
                     )
                 if r.status_code == 404:
+                    # Absence de données : ne PAS cacher (VT peut analyser plus tard).
                     verdict = {"ioc": ioc, "verdict": "unknown", "reason": "not_found"}
                 elif r.status_code == 429:
-                    # Quota épuisé : on N'ÉCHOUE PAS le playbook, on note et on passe
+                    # Quota épuisé : état CLIENT, pas propriété de l'IOC. On N'ÉCHOUE
+                    # PAS le playbook, on note et on passe — et on ne cache JAMAIS ce
+                    # verdict, sinon un IOC malveillant serait masqué jusqu'au TTL.
                     verdict = {
                         "ioc": ioc,
                         "verdict": "unknown",
@@ -133,7 +139,8 @@ async def virustotal_lookup(params: dict, ctx) -> dict:
                         "total_engines": total,
                         "vt_link": f"https://www.virustotal.com/gui/search/{ioc}",
                     }
-                _VT_CACHE[ioc] = (verdict, time.time())
+                    # Seul un verdict d'ANALYSE réel est mis en cache.
+                    _VT_CACHE[ioc] = (verdict, time.time())
                 results.append(verdict)
             except Exception as exc:  # noqa: BLE001 — best-effort, ne bloque jamais le cas
                 results.append({"ioc": ioc, "verdict": "error", "reason": str(exc)})
