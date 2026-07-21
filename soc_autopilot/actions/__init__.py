@@ -1,1 +1,1 @@
-from soc_autopilot.actions import wazuh  # noqa: F401  → enregistre les @action
+from soc_autopilot.actions import threatintel, wazuh  # noqa: F401  → enregistre les @action
