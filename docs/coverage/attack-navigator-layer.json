@@ -1,0 +1,56 @@
+{
+  "name": "SOC Autopilot — Couverture de détection",
+  "versions": {
+    "attack": "14",
+    "navigator": "4.9.1",
+    "layer": "4.5"
+  },
+  "domain": "enterprise-attack",
+  "description": "Généré depuis les tags ATT&CK des règles Sigma. NE PAS éditer à la main.",
+  "sorting": 0,
+  "hideDisabled": false,
+  "techniques": [
+    {
+      "techniqueID": "T1003.001",
+      "score": 4,
+      "enabled": true,
+      "comment": "LSASS Memory Access (Credential Dumping) (experimental)",
+      "metadata": [
+        {
+          "name": "règle",
+          "value": "Wazuh/t1003.001_lsass_memory_access.yml"
+        }
+      ]
+    },
+    {
+      "techniqueID": "T1059.001",
+      "score": 4,
+      "enabled": true,
+      "comment": "PowerShell Download Cradle in ScriptBlock (experimental); PowerShell Encoded Command Execution (experimental)",
+      "metadata": [
+        {
+          "name": "règle",
+          "value": "Wazuh/t1059.001_powershell_download_cradle_scriptblock.yml"
+        },
+        {
+          "name": "règle",
+          "value": "Wazuh/t1059.001_powershell_encoded_command.yml"
+        }
+      ]
+    }
+  ],
+  "gradient": {
+    "colors": [
+      "#ffe766",
+      "#8ec843"
+    ],
+    "minValue": 2,
+    "maxValue": 5
+  },
+  "legendItems": [
+    {
+      "label": "détecté (score = criticité)",
+      "color": "#8ec843"
+    }
+  ]
+}

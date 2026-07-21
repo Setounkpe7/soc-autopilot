@@ -2,9 +2,12 @@
 
 > Principe : **une matrice ATT&CK toute verte est un mensonge.** Ce document liste
 > ce qu'on détecte, ce qu'on ne détecte pas, et la remédiation — dérivé de l'état
-> réel du repo, pas d'une intention. Ce tableau est aujourd'hui maintenu à la main ;
-> la couverture machine **sera** générée par `tools/sigma_to_dettect.py` (carte ATT&CK
-> dérivée du code — phase à venir).
+> réel du repo, pas d'une intention. La couverture machine est **générée depuis les
+> tags ATT&CK des règles** par `tools/sigma_to_dettect.py` → `docs/coverage/`
+> (couche ATT&CK Navigator + fichier DeTT&CT). La CI **échoue si la carte est
+> périmée** — `git diff` sur la couche JSON (byte-déterministe) **et** tests de
+> contenu (`tests/detection/test_coverage.py`) sur les deux fichiers : la couverture
+> est un produit du code, jamais un PowerPoint qui datait déjà le jour de sa présentation.
 
 ## Couverture actuelle (règles réellement présentes dans `detections/`)
 
@@ -31,3 +34,24 @@
   via DeTT&CT une fois les sources documentées.
 - Toute règle sans `response_playbook` est refusée par la CI (`tests/detection/`), donc
   une détection sans réaction ne peut pas entrer.
+
+## Sources collectées (état labo)
+
+| Source | EID | Qualité | Note |
+|---|---|---|---|
+| Sysmon Process Creation | 1 | Élevée | ligne de cmd + parent + hash → base de T1059.001 |
+| Sysmon ProcessAccess | 10 | Élevée | accès LSASS → base de T1003.001 |
+| PowerShell Operational | 4104 | Élevée | script block logging **activé** → cradle T1059.001 |
+| Sysmon Registry | 13 | Moyenne | filtré agressivement (config SwiftOnSecurity) |
+| Sysmon CreateRemoteThread | 8 | **Absente** | **GAP** — T1055 (injection) invisible |
+| DNS Client | 3006 | **Absente** | **GAP** — T1071.004 / T1568 invisibles |
+
+## Ce que je NE couvre pas — et pourquoi (assumé)
+
+J'ai priorisé le **chemin critique d'une intrusion** (Execution → Persistence →
+Credential Access) plutôt qu'une couverture large et superficielle. Concrètement,
+tactiques absentes aujourd'hui : Reconnaissance, Resource Development, Discovery
+(T1087), Lateral Movement, Impact. Les règles T1547/T1136/T1053/T1070/T1105 sont
+prévues (fichier 03 §4.2) mais **non écrites** : chacune exige sa règle + son fixture
+d'attaque capturé + ses tests vrai/faux positif avant d'entrer. La largeur est dans la
+roadmap ; je préfère peu de détections **prouvées** à beaucoup de vert non testé.
