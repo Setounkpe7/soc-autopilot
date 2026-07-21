@@ -1,0 +1,30 @@
+title: PowerShell Download Cradle in ScriptBlock
+id: 9c3d5f21-8a4b-4e6c-b2d1-3e5a7c9f0b12
+status: experimental
+description: >
+  Detects a PowerShell script block (EID 4104) containing an in-memory
+  download-and-execute cradle. ScriptBlock logging records the de-obfuscated
+  script text, so this fires even when the code was launched via
+  -EncodedCommand, where the process command line alone would be opaque.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: Michel-Ange Doubogan
+date: 2026/07/20
+tags:
+  - attack.execution
+  - attack.t1059.001
+logsource:
+  category: ps_script
+  product: windows
+detection:
+  selection_cradle:
+    ScriptBlockText|contains:
+      - 'IEX('
+      - 'Invoke-Expression'
+      - 'DownloadString'
+      - 'Invoke-WebRequest'
+      - 'Net.WebClient'
+  condition: selection_cradle
+falsepositives:
+  - Administrative or packaging scripts that legitimately download and evaluate code
+level: high

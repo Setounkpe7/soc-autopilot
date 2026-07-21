@@ -70,3 +70,14 @@ def test_rule_a_valid_and_contains_cradle_terms():
     assert "data.win.eventdata.image" in out
     for term in ["IEX", "Invoke-Expression", "DownloadString"]:
         assert term in out
+
+
+def test_rule_b_valid_and_contains_scriptblock_terms():
+    rule = "detections/windows/t1059.001_powershell_download_cradle_scriptblock.yml"
+    check = subprocess.run(["sigma", "check", rule], capture_output=True, text=True)
+    assert check.returncode == 0, check.stdout + check.stderr
+    out = _convert(rule).replace("\\", "")  # neutralise l'échappement Lucene (\- \/)
+    assert "data.win.eventdata.scriptBlockText" in out
+    assert "Microsoft-Windows-PowerShell/Operational" in out
+    for term in ["Invoke-Expression", "DownloadString", "Net.WebClient"]:
+        assert term in out
