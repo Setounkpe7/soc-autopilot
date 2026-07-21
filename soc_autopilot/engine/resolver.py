@@ -8,11 +8,20 @@ _env = SandboxedEnvironment(undefined=StrictUndefined)
 
 
 def render(template: str, context: dict[str, Any]) -> Any:
-    """Rend un template Jinja2 en environnement sandboxé."""
+    """Rend un template Jinja2 en environnement sandboxé.
+
+    Retourne TOUJOURS la chaîne rendue telle quelle (pas de coercion), pour ne
+    jamais corrompre un paramètre : un id d'agent zero-paddé comme "001" doit
+    rester "001", pas devenir l'entier 1. La coercion bool/int est réservée à
+    `evaluate()`, qui traite des conditions `when:`.
+    """
     if not isinstance(template, str) or "{{" not in template:
         return template
-    result = _env.from_string(template).render(**context)
-    # Coercion des littéraux simples pour que `when: "{{ x > 5 }}"` retourne un bool
+    return _env.from_string(template).render(**context)
+
+
+def _coerce(result: str) -> Any:
+    """Coercion des littéraux simples pour les conditions booléennes/numériques."""
     low = result.strip().lower()
     if low in ("true", "false"):
         return low == "true"
@@ -39,4 +48,7 @@ def evaluate(expression: str | None, context: dict[str, Any]) -> bool:
     """Évalue une condition `when:`. Absence de condition = True."""
     if expression is None:
         return True
-    return bool(render(expression, context))
+    rendered = render(expression, context)
+    if isinstance(rendered, str):
+        rendered = _coerce(rendered)
+    return bool(rendered)

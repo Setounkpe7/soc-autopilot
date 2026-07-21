@@ -95,3 +95,56 @@ async def test_dedup_short_circuits_second_run(monkeypatch):
     second = await ex.run(pb, {"id": "same"})
     assert second["status"] == "deduplicated"
     assert second["execution_id"] == first["execution_id"]
+
+
+async def test_distinct_alerts_without_id_are_not_deduplicated(monkeypatch):
+    """Sans id/timestamp, la clé dérive du contenu → alertes distinctes distinctes."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+
+    pb = Playbook(
+        id="PB-0007",
+        name="n",
+        version="1.0",
+        trigger={},
+        steps=[{"id": "s1", "action": "noop"}],
+    )
+    ex = Executor(_FakeAudit())
+    r1 = await ex.run(pb, {"rule": {"id": "A"}})
+    r2 = await ex.run(pb, {"rule": {"id": "B"}})
+    assert r1["execution_id"] != r2["execution_id"]
+    assert r2["status"] != "deduplicated"
+
+
+async def test_integrity_error_race_returns_deduplicated(monkeypatch):
+    """Course concurrente : create_execution lève IntegrityError → dédupliqué."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+
+    class _RaceAudit(_FakeAudit):
+        async def create_execution(
+            self, *, dedup_key, playbook, alert_id, alert_raw, dry_run
+        ):
+            from sqlalchemy.exc import IntegrityError
+
+            self.seen[dedup_key] = _FakeExec(99)  # inséré par le "concurrent"
+            raise IntegrityError("dup", None, Exception("unique"))
+
+    pb = Playbook(
+        id="PB-0006",
+        name="n",
+        version="1.0",
+        trigger={},
+        steps=[{"id": "s1", "action": "noop"}],
+    )
+    result = await Executor(_RaceAudit()).run(pb, {"id": "race"})
+    assert result["status"] == "deduplicated"
+    assert result["execution_id"] == 99

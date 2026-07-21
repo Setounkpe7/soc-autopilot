@@ -1,10 +1,12 @@
 import asyncio
 import hashlib
+import json
 import time
 from typing import Any
 
 import structlog
 from prometheus_client import Counter, Histogram
+from sqlalchemy.exc import IntegrityError
 
 from soc_autopilot.config import get_settings
 from soc_autopilot.engine.registry import get_action
@@ -62,7 +64,17 @@ class Executor:
         self._settings = get_settings()
 
     async def run(self, playbook: Playbook, alert: dict) -> dict[str, Any]:
-        alert_id = str(alert.get("id") or alert.get("_id") or alert.get("timestamp"))
+        # Fallback déterministe : si l'alerte n'a ni id/_id/timestamp, on dérive
+        # la clé du CONTENU. Sans ça, toutes ces alertes partageraient la clé
+        # "None" et seule la première serait exécutée (idempotence effondrée).
+        alert_id = str(
+            alert.get("id")
+            or alert.get("_id")
+            or alert.get("timestamp")
+            or hashlib.sha256(
+                json.dumps(alert, sort_keys=True, default=str).encode()
+            ).hexdigest()
+        )
         key = dedup_key(alert_id, playbook.id)
 
         # ── IDEMPOTENCE ────────────────────────────────────────────────
@@ -72,19 +84,33 @@ class Executor:
             EXEC_TOTAL.labels(playbook.id, "deduplicated").inc()
             return {"execution_id": existing.id, "status": "deduplicated"}
 
-        execution = await self._audit.create_execution(
-            dedup_key=key,
-            playbook=playbook,
-            alert_id=alert_id,
-            alert_raw=alert,
-            dry_run=self._settings.dry_run,
-        )
+        try:
+            execution = await self._audit.create_execution(
+                dedup_key=key,
+                playbook=playbook,
+                alert_id=alert_id,
+                alert_raw=alert,
+                dry_run=self._settings.dry_run,
+            )
+        except IntegrityError:
+            # Course concurrente entre find_by_dedup et create : la contrainte
+            # d'unicité sur dedup_key rejette le doublon. L'idempotence tient
+            # donc même à plusieurs replicas (garantie en base, pas en mémoire).
+            existing = await self._audit.find_by_dedup(key)
+            log.info("execution_deduplicated_race", dedup_key=key)
+            EXEC_TOTAL.labels(playbook.id, "deduplicated").inc()
+            return {
+                "execution_id": existing.id if existing else None,
+                "status": "deduplicated",
+            }
+
         ctx = ExecutionContext(alert, playbook, execution.id, self._settings.dry_run)
 
         # Résolution des inputs déclarés
         ctx.inputs = render_dict(playbook.inputs, ctx.as_template_context())
 
         status = "success"
+        error_msg: str | None = None
         started = time.perf_counter()
         outputs: dict[str, Any] = {}
         try:
@@ -98,12 +124,22 @@ class Executor:
         except Exception as exc:
             log.exception("execution_crashed", execution_id=execution.id)
             status = "failed"
-            await self._audit.set_error(execution.id, str(exc))
+            error_msg = str(exc)
         finally:
             duration = time.perf_counter() - started
             EXEC_DURATION.labels(playbook.id).observe(duration)
             EXEC_TOTAL.labels(playbook.id, status).inc()
-            outputs = render_dict(playbook.outputs, ctx.as_template_context())
+            # Le rendu des outputs ne doit jamais masquer le statut réel ni
+            # laisser l'exécution bloquée en 'running' : on isole son échec.
+            try:
+                outputs = render_dict(playbook.outputs, ctx.as_template_context())
+            except Exception as exc:
+                log.warning(
+                    "outputs_render_failed", execution_id=execution.id, error=str(exc)
+                )
+                outputs = {}
+            if error_msg:
+                outputs = {**outputs, "error": error_msg}
             await self._audit.finish_execution(
                 execution.id, status=status, outputs=outputs
             )
@@ -129,6 +165,9 @@ class Executor:
         params = render_dict(step.with_, tctx)
 
         # ── GARDE-FOU : actifs protégés ────────────────────────────────
+        # Compare le NOM d'actif : `protected_assets` liste des noms (DC-01…)
+        # et les playbooks passent `agent: "{{ alert.agent.name }}"`. Une action
+        # qui ciblerait par id numérique devrait normaliser vers le nom en amont.
         if step.destructive:
             target = str(params.get("agent") or params.get("host") or "")
             if target in ctx.settings.protected_assets:

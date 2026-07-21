@@ -32,3 +32,14 @@ def test_sandbox_blocks_rce():
 def test_non_template_passthrough():
     assert render("plain", {}) == "plain"
     assert render(42, {}) == 42
+
+
+def test_render_does_not_coerce_padded_ids():
+    """Un id zero-paddé rendu doit rester une chaîne, pas devenir un int."""
+    assert render("{{ v }}", {"v": "001"}) == "001"
+    assert render("{{ v }}", {"v": "true"}) == "true"
+
+
+def test_evaluate_still_coerces_numeric_and_bool():
+    assert evaluate("{{ v }}", {"v": "true"}) is True
+    assert evaluate("{{ n }}", {"n": 0}) is False
