@@ -1,0 +1,6 @@
+apiVersion: v2
+name: soc-autopilot
+description: Moteur d'orchestration et d'automatisation SOC (SOAR) — chart durci
+type: application
+version: 0.3.0
+appVersion: "0.3.0"

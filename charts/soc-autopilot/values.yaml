@@ -1,0 +1,61 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/setounkpe7/soc-autopilot
+  tag: "0.3.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# securityContext au niveau du Pod
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# securityContext au niveau du conteneur
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+networkPolicy:
+  enabled: true
+  allowedEgress:
+    - cidr: "192.168.56.10/32"
+      ports: [55000, 9000, 5432] # Wazuh, TheHive, PostgreSQL
+    - cidr: "0.0.0.0/0"
+      ports: [443] # Slack, threat-intel-api (HTTPS)
+
+# Configuration non secrète (les secrets viennent de Terraform → Secret externe).
+config:
+  dryRun: true
+  approvalTimeoutSeconds: 900
+  playbooksDir: /app/playbooks
+  wazuhApiUrl: "https://192.168.56.10:55000"
+  threatIntelUrl: "https://threat-intel-api.internal"
+  slackAlertChannel: "#soc-alerts"
+  slackActionChannel: "#soc-actions"
+
+# Nom du Secret externe (créé par Terraform) monté via envFrom.
+externalSecretName: soc-autopilot-secrets # pragma: allowlist secret
+# Nom de la ConfigMap de playbooks externe (créée par Terraform).
+externalPlaybooksConfigMap: soc-autopilot-playbooks

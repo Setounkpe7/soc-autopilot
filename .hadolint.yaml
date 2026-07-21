@@ -1,0 +1,4 @@
+ignored:
+  # Épingler les versions apk casse à chaque MAJ du miroir Alpine ; on préfère
+  # rebâtir régulièrement l'image (voir Trivy en release) plutôt que figer.
+  - DL3018

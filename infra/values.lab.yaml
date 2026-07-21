@@ -1,0 +1,16 @@
+# Override Helm pour le labo (contrainte RAM ~11,6 Go : un seul replica).
+replicaCount: 1
+
+image:
+  tag: "0.3.0"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+config:
+  dryRun: true
