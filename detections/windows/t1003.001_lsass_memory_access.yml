@@ -1,0 +1,48 @@
+title: LSASS Memory Access (Credential Dumping)
+id: 7b1e4c8a-2d6f-4a91-9c3e-5f8b0a1d2e64
+status: experimental
+description: >
+  Detects a process opening a handle to lsass.exe with an access mask that
+  permits reading process memory (T1003.001), the behaviour of procdump/mimikatz
+  style credential dumping, captured at Sysmon EID 10 (ProcessAccess). Legitimate
+  AV/EDR access is excluded by SourceImage. The exact GrantedAccess masks below
+  come from community Sigma telemetry and MUST be confirmed against a real
+  procdump detonation on the lab before this rule leaves 'experimental' — the
+  true-positive test skips until that fixture is captured.
+references:
+  - https://attack.mitre.org/techniques/T1003/001/
+  - https://github.com/SigmaHQ/sigma/blob/master/rules/windows/process_access/proc_access_win_lsass_memdump.yml
+author: Michel-Ange Doubogan
+date: 2026/07/21
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+logsource:
+  category: process_access
+  product: windows
+detection:
+  selection:
+    TargetImage|endswith: '\lsass.exe'
+    GrantedAccess:
+      - '0x1010'
+      - '0x1038'
+      - '0x1410'
+      - '0x1418'
+      - '0x1438'
+      - '0x143a'
+      - '0x1f0fff'
+      - '0x1f1fff'
+      - '0x1f2fff'
+      - '0x1fffff'
+  filter_signed:
+    # Exclut les accès LÉGITIMES d'AV/EDR signés (cas bénin : Defender/MsMpEng).
+    SourceImage|endswith:
+      - '\MsMpEng.exe'
+      - '\MsSense.exe'
+      - '\wazuh-agent.exe'
+  condition: selection and not filter_signed
+falsepositives:
+  - Endpoint protection / EDR agents reading LSASS (excluded via SourceImage)
+  - Backup or diagnostic tooling with legitimate memory-read access
+level: high
+response_playbook: PB-0002
