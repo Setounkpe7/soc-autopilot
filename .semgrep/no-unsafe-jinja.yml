@@ -1,0 +1,10 @@
+rules:
+  - id: no-unsafe-jinja-environment
+    pattern-either:
+      - pattern: jinja2.Environment(...)
+      - pattern: from jinja2 import Environment
+    message: >
+      Utiliser jinja2.sandbox.SandboxedEnvironment. Un Environment non sandboxé
+      permet une RCE via les playbooks YAML.
+    severity: ERROR
+    languages: [python]
