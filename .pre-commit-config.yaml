@@ -16,6 +16,8 @@ repos:
     rev: v4.6.0
     hooks:
       - id: check-yaml
+        # Les templates Helm contiennent du Go template ({{ }}) — pas du YAML pur.
+        exclude: '^charts/soc-autopilot/templates/'
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-added-large-files

@@ -4,7 +4,21 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.5.7
+      - run: ruff check .
+      - run: ruff format --check .
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -16,10 +30,67 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install semgrep sigma-cli pysigma-backend-opensearch pysigma-pipeline-sysmon
-      - name: Lint (ruff)
-        run: ruff check soc_autopilot tests
-      - name: Semgrep — no unsafe Jinja (RCE guard)
-        run: semgrep --config .semgrep/no-unsafe-jinja.yml soc_autopilot/ --error
-      - name: Tests (offline; live-indexer integration tests self-skip)
+          pip install sigma-cli pysigma-backend-opensearch pysigma-pipeline-sysmon
+      - name: Tests (offline ; les tests live-indexer se skippent)
         run: python -m pytest tests/ -v
+
+  sigma:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install sigma-cli pysigma-backend-opensearch pyyaml
+      - name: Syntaxe Sigma (règles seules ; les pipelines ne sont pas des règles)
+        run: sigma check detections/windows/
+      - name: Chaque règle DOIT déclarer un playbook existant
+        run: python tools/check_playbook_links.py
+
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit semgrep
+      - name: Bandit (code applicatif)
+        run: bandit -r soc_autopilot -ll
+      - name: Semgrep — garde anti-Jinja non sandboxé (RCE)
+        run: semgrep --config .semgrep/no-unsafe-jinja.yml soc_autopilot/ --error
+
+  docker-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint charts/soc-autopilot
+      - name: kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          helm template test charts/soc-autopilot | ./kubeconform -strict -summary -ignore-missing-schemas
+
+  iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform -chdir=infra fmt -check -recursive
+      - run: terraform -chdir=infra init -backend=false
+      - run: terraform -chdir=infra validate
+      - name: Checkov (IaC — non bloquant, findings visibles)
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform,dockerfile,helm
+          soft_fail: true
+          quiet: true
