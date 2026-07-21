@@ -19,14 +19,18 @@ detection:
   selection_proc:
     - Image|endswith: '\powershell.exe'
     - OriginalFileName: 'PowerShell.EXE'
-  selection_cradle:
+  selection_exec:
     CommandLine|contains:
       - 'IEX'
       - 'Invoke-Expression'
-      - 'DownloadString'
+  selection_download:
+    CommandLine|contains:
+      - 'IWR'
       - 'Invoke-WebRequest'
-      - 'IWR '
-  condition: selection_proc and selection_cradle
+      - 'DownloadString'
+      - 'DownloadFile'
+      - 'Net.WebClient'
+  condition: selection_proc and selection_exec and selection_download
 falsepositives:
   - Legitimate administrative scripts that use Invoke-Expression with remote content
 level: high

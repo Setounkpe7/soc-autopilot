@@ -21,7 +21,7 @@ import urllib.request
 from base64 import b64encode
 
 PIPELINE = "detections/pipelines/wazuh-windows.yml"
-INDEX = "wazuh-alerts-*"
+INDEX = os.environ.get("WAZUH_INDEX", "wazuh-alerts-*")
 
 
 def convert(rule_path: str) -> str:

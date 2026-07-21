@@ -134,3 +134,30 @@ donc sur des **données fraîches** (re-détonation en session VM), pas sur l'hi
 Limite connue : `ignore_above: 32766` couvre jusqu'à ~32 Ko (limite de terme Lucene) ; un
 scriptblock plus volumineux exigerait un sous-champ `text` (au prix de la tokenisation des
 tirets, qui casse les wildcards de phrases comme `*Invoke-Expression*`).
+
+## 9. Validation finale (résultat)
+
+Deux découvertes à la re-détonation :
+- **Les tests atomiques T1059.001 ne produisent pas de download cradle inline** : Atomic Red
+  Team télécharge ses scripts comme **fichiers** (au `-GetPrereqs`) puis les exécute
+  localement. Aucun `IEX/DownloadString` inline dans les logs frais. Le seul cradle réel de
+  tout l'index est la **commande d'installation d'ART** de la session initiale.
+- **Les règles initiales rataient ce cradle** : elles cherchaient `IEX(` (collé) alors que le
+  cradle écrit `IEX (` (espace), et `Invoke-WebRequest` alors que le cradle utilise l'alias
+  `IWR`. C'est le tuning que seule une validation sur données réelles révèle.
+
+**Tuning appliqué :** les deux règles sont restructurées en **`selection_exec` ET
+`selection_download`** — un alias d'exécution (`IEX`, `Invoke-Expression`) ET un mécanisme de
+téléchargement (`IWR`, `Invoke-WebRequest`, `DownloadString`, `DownloadFile`, `Net.WebClient`)
+dans le même événement. Plus robuste aux alias, et plus faible en faux positifs (exige les deux).
+
+**Preuve :** après réindex des données existantes sous le mapping corrigé, la règle B matche le
+cradle réel (1 hit, EID 4104). La règle A rend 0 sur ces données (le cradle était in-process
+dans l'ISE, pas un processus enfant) — attendu, et illustration de la complémentarité des deux
+angles.
+
+**Test d'intégration reproductible** (`tests/integration/test_t1059_detonation_match.py`) :
+plutôt que dépendre d'une détonation live, il crée un index jetable au mapping corrigé, y
+indexe des **fixtures de cradle réels** (> 256 car., ce qui exerce aussi le fix `ignore_above`),
+convertit chaque règle et vérifie le match. Les **deux** règles sont ainsi validées de bout en
+bout, en CI, sans VM.

@@ -17,14 +17,18 @@ logsource:
   category: ps_script
   product: windows
 detection:
-  selection_cradle:
+  selection_exec:
     ScriptBlockText|contains:
-      - 'IEX('
+      - 'IEX'
       - 'Invoke-Expression'
-      - 'DownloadString'
+  selection_download:
+    ScriptBlockText|contains:
+      - 'IWR'
       - 'Invoke-WebRequest'
+      - 'DownloadString'
+      - 'DownloadFile'
       - 'Net.WebClient'
-  condition: selection_cradle
+  condition: selection_exec and selection_download
 falsepositives:
   - Administrative or packaging scripts that legitimately download and evaluate code
 level: high
