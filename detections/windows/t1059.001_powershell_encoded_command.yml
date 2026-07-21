@@ -1,0 +1,35 @@
+title: PowerShell Encoded Command Execution
+id: 3f8c1d92-7a5e-4b3c-9e21-6d4f0a8b1c53
+status: experimental
+description: >
+  Detects powershell.exe executed with an encoded command or encoded arguments
+  (-EncodedCommand / -e / -EncodedArguments), a T1059.001 obfuscation technique
+  observed in the Atomic Red Team detonation at the process-creation level
+  (Sysmon EID 1). Encoding hides the payload from command-line inspection.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: Michel-Ange Doubogan
+date: 2026/07/21
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.defense_evasion
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_proc:
+    - Image|endswith: '\powershell.exe'
+    - OriginalFileName: 'PowerShell.EXE'
+  selection_encoded:
+    CommandLine|contains:
+      - ' -e '
+      - ' -E '
+      - ' -enc'
+      - ' -Enc'
+      - ' -ea '
+      - ' -EA '
+  condition: selection_proc and selection_encoded
+falsepositives:
+  - Rare administrative or installer tooling that passes base64-encoded commands
+level: high

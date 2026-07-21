@@ -18,11 +18,15 @@ règle Sigma → conversion outillée → requête → validation sur données r
 
 ```
 detections/windows/
-  t1059.001_powershell_download_cradle_cmdline.yml      # angle « processus » (Sysmon EID 1)
+  t1059.001_powershell_encoded_command.yml              # angle « processus » (Sysmon EID 1) — cf. §10
   t1059.001_powershell_download_cradle_scriptblock.yml  # angle « contenu »  (PowerShell EID 4104)
 detections/pipelines/
   wazuh-windows.yml                                     # pipeline de mapping Sigma→Wazuh (réutilisable)
 ```
+
+> Note : l'angle « processus » a été **re-scopé** du download cradle vers la **commande
+> encodée** après examen de la télémétrie réelle (voir §10). Le fichier
+> `t1059.001_powershell_download_cradle_cmdline.yml` a été supprimé.
 
 ## 3. Les deux règles — logique de détection
 
@@ -161,3 +165,27 @@ plutôt que dépendre d'une détonation live, il crée un index jetable au mappi
 indexe des **fixtures de cradle réels** (> 256 car., ce qui exerce aussi le fix `ignore_above`),
 convertit chaque règle et vérifie le match. Les **deux** règles sont ainsi validées de bout en
 bout, en CI, sans VM.
+
+## 10. Re-scope piloté par la menace (détection = comportement réellement observé)
+
+Principe appliqué : **une règle doit correspondre à un comportement que l'attaque testée produit
+réellement**, jamais à de la télémétrie fabriquée pour la faire matcher.
+
+Examen de la télémétrie **processus (EID 1)** de la détonation : aucun download cradle en ligne
+de commande. Le vrai comportement au niveau processus est la **commande encodée** —
+`powershell.exe -e / -E / -EncodedArguments / -EA <base64>` — abondante et classique (obfuscation,
+T1059.001 + defense evasion). La règle A initiale (cradle en ligne de commande) détectait donc un
+comportement **absent de la menace**.
+
+**Décision — règle A re-scopée** vers `t1059.001_powershell_encoded_command.yml` : détecte
+`powershell.exe` (ou `OriginalFileName`) + un flag de commande encodée (`-e`, `-E`, `-enc`, `-Enc`,
+`-ea`, `-EA`, en formes explicites car le backend keyword est sensible à la casse et
+`query_string` ne supporte pas `case_insensitive`). **Validée sur 4 événements réels** de la
+détonation (réindexés sous mapping corrigé) — dont Wazuh lui-même décrit « executed a base64
+encoded command ». Zéro télémétrie fabriquée.
+
+**Décision — règle B conservée** : le download cradle ScriptBlock a matché un **vrai** cradle (la
+commande d'installation d'ART), qui est du T1059.001 authentique et validé sur donnée réelle.
+Download-and-execute cradle est une procédure documentée, complémentaire de la commande encodée.
+Piste future : élargir la couverture 4104 au contenu réellement logué par les tests (shellcode,
+Mimikatz) et généraliser la casse via un `normalizer` lowercase à l'indexation.
