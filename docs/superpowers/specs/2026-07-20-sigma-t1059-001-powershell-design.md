@@ -107,3 +107,30 @@ Une règle est terminée quand :
 - Pipeline CI (lint/test des règles en pre-commit/CI) → lot suivant.
 - Intégration au moteur SOAR (`soc_autopilot/engine`) et création de cas → lot suivant.
 - Autres techniques ATT&CK → une fois la boucle prouvée sur T1059.001.
+
+## 8. Résolution du point de contrôle (root cause réel + fix appliqué)
+
+À l'exécution, la validation a renvoyé **0 hit**. Le diagnostic systématique a écarté
+l'hypothèse du plan (casse) : le vrai problème est le **data-model de l'indexeur**. Le
+template Wazuh par défaut mappe `data.win.eventdata.commandLine` et `scriptBlockText` en
+`keyword` avec **`ignore_above` (~256)** via dynamic template. Toute valeur > 256 caractères
+— donc la quasi-totalité des lignes de commande et scriptblocks PowerShell malveillants
+(nos cradles font 341 à 6074 car.) — est stockée dans `_source` mais **non indexée**, donc
+invisible en `contains`/wildcard. Preuves : wildcard sur `image` (court) matche (32 hits),
+sur `commandLine`/`scriptBlockText` (longs) = 0 ; `doc['scriptBlockText'].size()` = 0 sur
+tous les événements 4104.
+
+Enseignement : Wazuh détecte le **contenu** au **manager (analysisd)** à l'ingestion (la
+règle Wazuh 91837 a tiré là) ; l'indexeur sert au hunting, et son mapping par défaut ampute
+les champs longs.
+
+**Fix appliqué (sans toucher aux règles ni au pipeline) :** un template legacy de surcharge
+`infra/wazuh/templates/wazuh-eventdata-override.json` (`order: 10` > 0) qui mappe ces deux
+champs en `keyword, ignore_above: 32766`, rendant le contenu cherchable comme le champ
+`image`. Mécanisme prouvé sur index test (0 → 1 hit). Il s'applique aux **nouveaux** index
+quotidiens ; les données déjà ingérées restent sous l'ancien mapping. La boucle se validera
+donc sur des **données fraîches** (re-détonation en session VM), pas sur l'historique.
+
+Limite connue : `ignore_above: 32766` couvre jusqu'à ~32 Ko (limite de terme Lucene) ; un
+scriptblock plus volumineux exigerait un sous-champ `text` (au prix de la tokenisation des
+tirets, qui casse les wildcards de phrases comme `*Invoke-Expression*`).

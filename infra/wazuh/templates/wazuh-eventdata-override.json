@@ -1,0 +1,22 @@
+{
+  "order": 10,
+  "index_patterns": ["wazuh-alerts-*"],
+  "mappings": {
+    "properties": {
+      "data": {
+        "properties": {
+          "win": {
+            "properties": {
+              "eventdata": {
+                "properties": {
+                  "commandLine":     { "type": "keyword", "ignore_above": 32766 },
+                  "scriptBlockText": { "type": "keyword", "ignore_above": 32766 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
