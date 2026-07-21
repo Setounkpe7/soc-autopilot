@@ -1,0 +1,32 @@
+# Mappe les champs Sigma vers le schéma JSON décodé de Wazuh (wazuh-alerts-*)
+# et ajoute la condition de canal/eventID selon le logsource de la règle.
+name: wazuh-windows
+priority: 100
+transformations:
+  - id: wazuh_field_mapping
+    type: field_name_mapping
+    mapping:
+      Image: data.win.eventdata.image
+      OriginalFileName: data.win.eventdata.originalFileName
+      CommandLine: data.win.eventdata.commandLine
+      ScriptBlockText: data.win.eventdata.scriptBlockText
+
+  - id: sysmon_process_creation_channel
+    type: add_condition
+    conditions:
+      "data.win.system.channel": "Microsoft-Windows-Sysmon/Operational"
+      "data.win.system.eventID": "1"
+    rule_conditions:
+      - type: logsource
+        category: process_creation
+        product: windows
+
+  - id: powershell_scriptblock_channel
+    type: add_condition
+    conditions:
+      "data.win.system.channel": "Microsoft-Windows-PowerShell/Operational"
+      "data.win.system.eventID": "4104"
+    rule_conditions:
+      - type: logsource
+        category: ps_script
+        product: windows

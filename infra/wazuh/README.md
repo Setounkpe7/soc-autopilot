@@ -45,3 +45,24 @@ Dashboard : **https://localhost:443** (ou `https://192.168.56.1:443` depuis la V
 - Toutes les IP `192.168.56.10` de la doc → **`192.168.56.1`** (host-only de l'hôte) ou `localhost`.
 - L'agent Wazuh de `victim-win` s'enregistre auprès du manager à **`192.168.56.1`**.
 - Pas de snapshot VM du SIEM : reset propre = `docker compose down -v && docker compose up -d`.
+
+## 5. Correctif mapping : contenu PowerShell long (`ignore_above`)
+
+Le template Wazuh par défaut mappe `data.win.eventdata.commandLine` et `scriptBlockText` en
+`keyword` avec `ignore_above` (~256). Les valeurs plus longues (la plupart des lignes de
+commande et scriptblocks) sont stockées mais **non indexées** → une détection Sigma en
+`contains` sur ces champs ne matche rien côté indexeur.
+
+Correctif versionné : `infra/wazuh/templates/wazuh-eventdata-override.json` (template legacy
+`order: 10`, `ignore_above: 32766`). À **(ré)appliquer après chaque `down -v`** (Wazuh
+réinstalle son template par défaut au démarrage) :
+
+```bash
+curl -sk -u admin:SecretPassword -X PUT \
+  https://localhost:9200/_template/wazuh-eventdata-override \
+  -H 'Content-Type: application/json' \
+  --data-binary @infra/wazuh/templates/wazuh-eventdata-override.json
+```
+
+> Ne s'applique qu'aux **nouveaux** index quotidiens. Pour rendre cherchable un contenu déjà
+> ingéré, reindexer ou re-détoner après application.
