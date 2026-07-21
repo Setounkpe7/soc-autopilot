@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 
 import soc_autopilot.actions  # noqa: F401  → déclenche l'enregistrement des @action
-from soc_autopilot.api.routes import executions, playbooks, webhook
+from soc_autopilot.api.routes import approvals, executions, playbooks, webhook
 from soc_autopilot.audit import AuditRepository
 from soc_autopilot.config import get_settings
 from soc_autopilot.engine.executor import Executor
@@ -38,6 +38,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(webhook.router, tags=["webhook"])
+app.include_router(approvals.router, tags=["approvals"])
 app.include_router(playbooks.router, prefix="/playbooks", tags=["playbooks"])
 app.include_router(executions.router, prefix="/executions", tags=["executions"])
 app.mount("/metrics", make_asgi_app())
