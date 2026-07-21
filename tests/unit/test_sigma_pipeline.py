@@ -59,3 +59,14 @@ def test_ps_script_maps_to_scriptblock_and_powershell_channel(tmp_path):
     out = _convert(rule).replace("\\", "")  # neutralise l'échappement Lucene (\- \/)
     assert "data.win.eventdata.scriptBlockText" in out
     assert "Microsoft-Windows-PowerShell/Operational" in out
+
+
+def test_rule_a_valid_and_contains_cradle_terms():
+    rule = "detections/windows/t1059.001_powershell_download_cradle_cmdline.yml"
+    check = subprocess.run(["sigma", "check", rule], capture_output=True, text=True)
+    assert check.returncode == 0, check.stdout + check.stderr
+    out = _convert(rule).replace("\\", "")  # neutralise l'échappement Lucene (\- \/)
+    assert "data.win.eventdata.commandLine" in out
+    assert "data.win.eventdata.image" in out
+    for term in ["IEX", "Invoke-Expression", "DownloadString"]:
+        assert term in out
