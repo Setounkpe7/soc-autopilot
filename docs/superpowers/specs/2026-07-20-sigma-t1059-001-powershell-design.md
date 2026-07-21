@@ -178,11 +178,19 @@ T1059.001 + defense evasion). La règle A initiale (cradle en ligne de commande)
 comportement **absent de la menace**.
 
 **Décision — règle A re-scopée** vers `t1059.001_powershell_encoded_command.yml` : détecte
-`powershell.exe` (ou `OriginalFileName`) + un flag de commande encodée (`-e`, `-E`, `-enc`, `-Enc`,
-`-ea`, `-EA`, en formes explicites car le backend keyword est sensible à la casse et
-`query_string` ne supporte pas `case_insensitive`). **Validée sur 4 événements réels** de la
-détonation (réindexés sous mapping corrigé) — dont Wazuh lui-même décrit « executed a base64
-encoded command ». Zéro télémétrie fabriquée.
+`powershell.exe` (ou `OriginalFileName`) + un flag de commande encodée. **Validée sur les
+événements réels** de la détonation (réindexés sous mapping corrigé) — Wazuh les décrivant
+« executed a base64 encoded command ». Zéro télémétrie fabriquée.
+
+> **Affinage suite à la revue de code (PR #1).** La 1re version listait `-ea`/`-EA` et
+> `-enc`/`-Enc` : la revue a montré que `-ea`/`-EA` matche l'alias ubiquitaire `-ErrorAction`
+> et `-enc`/`-Enc` le préfixe `-Encoding` → faux positifs massifs sur du PowerShell bénin,
+> en contradiction avec le champ `falsepositives`. Corrigé : flags avec **espaces
+> délimiteurs** (`-e`, `-E`, `-ec`, `-enc `, `-Enc `) + formes pleines
+> (`-EncodedCommand`/`-EncodedArguments`), et **abandon de `-ea`/`-EA`** (irrémédiablement
+> ambigus). Compromis assumé : l'abréviation nue `-EA` d'`-EncodedArguments` n'est plus
+> couverte (la forme pleine l'est). Contrôle bruit post-fix : 3 processus PowerShell sur 8
+> matchés (ciblé), 0 faux positif sur `-ErrorAction`/`-Encoding`.
 
 **Décision — règle B conservée** : le download cradle ScriptBlock a matché un **vrai** cradle (la
 commande d'installation d'ART), qui est du T1059.001 authentique et validé sur donnée réelle.

@@ -22,13 +22,18 @@ detection:
     - Image|endswith: '\powershell.exe'
     - OriginalFileName: 'PowerShell.EXE'
   selection_encoded:
+    # Espaces délimiteurs pour ne matcher que le flag encodé isolé, jamais
+    # -ErrorAction (-ea) ni -Encoding (-Enc suivi de "oding", sans espace).
     CommandLine|contains:
       - ' -e '
       - ' -E '
-      - ' -enc'
-      - ' -Enc'
-      - ' -ea '
-      - ' -EA '
+      - ' -ec '
+      - ' -enc '
+      - ' -Enc '
+      - ' -EncodedCommand'
+      - ' -encodedcommand'
+      - ' -EncodedArguments'
+      - ' -encodedarguments'
   condition: selection_proc and selection_encoded
 falsepositives:
   - Rare administrative or installer tooling that passes base64-encoded commands
