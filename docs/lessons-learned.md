@@ -13,7 +13,8 @@ les sources signées (Defender/EDR) via `filter_signed`.
 **Point ouvert, assumé :** la liste des masques `GrantedAccess` (`0x1010`, `0x1410`,
 … `0x1fffff`) provient de la règle communautaire Sigma, **pas** d'une capture sur
 mon propre index. Les sources ne sont d'ailleurs pas unanimes — la documentation
-interne de ce projet cite tantôt `0x1410`, tantôt `0x1fffff` pour procdump. C'est
+interne de ce projet cite tantôt `0x1410` (`docs/04_Tests_Attaque_et_Validation.md`
+§6.2), tantôt `0x1fffff` (même fichier, §8) pour procdump. C'est
 exactement pourquoi la règle est `status: experimental` et pourquoi son test de
 vrai positif **se skippe** tant que la télémétrie réelle n'est pas capturée :
 

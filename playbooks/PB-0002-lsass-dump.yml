@@ -1,0 +1,51 @@
+id: PB-0002
+name: LSASS dump — containment immédiat
+version: "1.0"
+description: >
+  T1003.001 — un dump de LSASS signifie que les credentials sont DÉJÀ volés ;
+  chaque seconde compte pour le mouvement latéral. C'est le seul cas d'auto-containment
+  SANS approbation humaine : ouverture de cas puis isolation immédiate de l'hôte
+  (dry-run par défaut ; la garde des actifs protégés s'applique toujours).
+
+trigger:
+  mitre: ["T1003.001"]
+  severity_min: 8
+
+inputs:
+  host: "{{ alert.agent.name }}"
+
+steps:
+  - id: context
+    action: wazuh.get_agent_context
+    with: { agent: "{{ inputs.host }}" }
+    on_error: continue
+
+  - id: case
+    action: thehive.create_case
+    on_error: fail
+    with:
+      title: "[PB-0002] LSASS dump — {{ inputs.host }}"
+      description: |
+        Accès mémoire LSASS détecté sur {{ inputs.host }} ({{ steps.context.output.ip }}).
+        Containment immédiat : credentials présumés déjà volés.
+      severity: 4
+      tlp: 2
+      mitre_tags: ["attack.t1003.001", "attack.credential_access"]
+
+  - id: isolate
+    action: wazuh.isolate_host
+    destructive: true
+    rollback: wazuh.unisolate_host
+    with:
+      agent: "{{ inputs.host }}"
+      ip: "{{ steps.context.output.ip }}"
+
+  - id: notify
+    action: slack.post
+    with:
+      channel: "#soc-alerts"
+      text: "🚨 PB-0002 — {{ inputs.host }} isolé (LSASS dump) — cas {{ steps.case.output.case_id }}"
+
+outputs:
+  case_id: "{{ steps.case.output.case_id }}"
+  isolated: "{{ steps.isolate.output is not none }}"

@@ -4,6 +4,7 @@ On n'a pas besoin d'un Elasticsearch en CI pour valider la LOGIQUE d'une règle 
 on rejoue la règle brute (avant pipeline Wazuh) contre des événements Sysmon bruts.
 """
 
+import re
 from typing import Any
 
 
@@ -46,7 +47,14 @@ def _match_selection(event: dict, selection: Any) -> bool:
 
 
 def evaluate_rule(rule: dict, event: dict) -> bool:
-    """Évalue la condition Sigma. Gère 'A and B', 'A and not B', 'A or B'."""
+    """Évalue la condition Sigma. Gère 'A and B', 'A and not B', '(A or B) and not C'.
+
+    Tokenise la condition (mots + parenthèses) puis remplace CHAQUE token :
+    un opérateur (`and`/`or`/`not`) ou une parenthèse est conservé ; tout autre
+    token doit être un nom de sélection connu, remplacé par son booléen. Cette
+    validation token par token évite les pièges de substitution par sous-chaîne
+    (un nom court comme `no` inséré dans `not`) et blinde l'`eval`.
+    """
     detection = rule["detection"]
     condition = detection["condition"].strip()
 
@@ -54,15 +62,13 @@ def evaluate_rule(rule: dict, event: dict) -> bool:
         k: _match_selection(event, v) for k, v in detection.items() if k != "condition"
     }
 
-    # Parseur de condition volontairement limité au sous-ensemble utilisé.
-    expr = condition
-    for name in sorted(results, key=len, reverse=True):
-        expr = expr.replace(name, str(results[name]))
-    expr = expr.replace("and", " and ").replace("or", " or ").replace("not", " not ")
+    out: list[str] = []
+    for tok in re.findall(r"\w+|[()]", condition):
+        if tok in ("and", "or", "not", "(", ")"):
+            out.append(tok)
+        elif tok in results:
+            out.append(str(results[tok]))
+        else:
+            raise ValueError(f"Token inconnu dans la condition: '{tok}' ({condition})")
 
-    # Sécurisé : seuls True/False/and/or/not/parenthèses subsistent après substitution.
-    allowed = {"True", "False", "and", "or", "not", "(", ")"}
-    tokens = expr.replace("(", " ( ").replace(")", " ) ").split()
-    if not set(tokens).issubset(allowed):
-        raise ValueError(f"Condition non supportée: {condition} → {expr}")
-    return eval(expr)  # noqa: S307 — entrée validée par la whitelist ci-dessus
+    return eval(" ".join(out))  # noqa: S307 — chaque token validé individuellement

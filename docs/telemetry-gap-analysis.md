@@ -2,8 +2,9 @@
 
 > Principe : **une matrice ATT&CK toute verte est un mensonge.** Ce document liste
 > ce qu'on détecte, ce qu'on ne détecte pas, et la remédiation — dérivé de l'état
-> réel du repo, pas d'une intention. La couverture machine est générée par
-> `tools/sigma_to_dettect.py` (carte ATT&CK dérivée du code).
+> réel du repo, pas d'une intention. Ce tableau est aujourd'hui maintenu à la main ;
+> la couverture machine **sera** générée par `tools/sigma_to_dettect.py` (carte ATT&CK
+> dérivée du code — phase à venir).
 
 ## Couverture actuelle (règles réellement présentes dans `detections/`)
 

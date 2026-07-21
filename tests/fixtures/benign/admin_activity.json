@@ -45,6 +45,14 @@
         "User": "CORP\\jdupont",
         "_comment": "net user SANS /add → énumération, pas création. Ne doit pas matcher T1136.001."
       }
+    },
+    {
+      "EventID": 4104,
+      "TimeCreated": "2026-07-20T09:44:05.000Z",
+      "EventData": {
+        "ScriptBlockText": "IEX (Get-Content 'C:\\Scripts\\Deploy.ps1' -Raw)",
+        "_comment": "IEX d'un script LOCAL — PAS de download cradle. Exerce selection_exec sans selection_download → la règle cradle ne doit PAS matcher (prouve le AND)."
+      }
     }
   ]
 }
