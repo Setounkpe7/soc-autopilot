@@ -39,6 +39,10 @@ resource "kubernetes_namespace" "soc" {
 }
 
 # Secret HMAC généré par Terraform : jamais tapé par un humain, jamais en clair.
+# Limite connue (labo) : avec un backend LOCAL, le state contient ce secret et
+# ceux du kubernetes_secret EN CLAIR. `*.tfstate` est git-ignoré, mais en prod il
+# faut un backend distant CHIFFRÉ (Azure Storage + state locking) et idéalement
+# Vault / Azure Key Vault en source. Documenté au threat model.
 resource "random_password" "webhook_hmac" {
   length  = 48
   special = false

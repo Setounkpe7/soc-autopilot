@@ -25,6 +25,8 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+        - protocol: TCP
+          port: 53 # fallback DNS (réponses tronquées)
     {{- range .Values.networkPolicy.allowedEgress }}
     - to:
         - ipBlock:

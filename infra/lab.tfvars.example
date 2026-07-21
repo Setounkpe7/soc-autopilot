@@ -1,7 +1,7 @@
 # Copie ce fichier en lab.tfvars (git-ignoré) et remplis les valeurs réelles.
 # Ne JAMAIS commiter lab.tfvars — il contient des secrets.
 wazuh_api_password = "CHANGE_ME" # pragma: allowlist secret
-database_url       = "postgresql+asyncpg://soc:CHANGE_ME@postgres:5432/soc_autopilot" # pragma: allowlist secret
+database_url       = "postgresql+asyncpg://soc:CHANGE_ME@192.168.56.10:5432/soc_autopilot" # pragma: allowlist secret
 
 # Optionnels (mode dégradé si vides) :
 thehive_api_key    = ""
