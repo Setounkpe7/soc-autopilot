@@ -66,3 +66,6 @@ class PlaybookStore:
 
     def all(self) -> list[Playbook]:
         return list(self._by_id.values())
+
+    def count(self) -> int:
+        return len(self._by_id)
