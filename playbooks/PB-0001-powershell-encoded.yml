@@ -1,0 +1,107 @@
+id: PB-0001
+name: PowerShell encodé suspect
+version: "1.0"
+description: >
+  T1059.001 — décodage de la commande, extraction d'IOC, enrichissement sectoriel,
+  ouverture de cas, isolation sous approbation humaine si le score est critique.
+
+trigger:
+  rule_ids: ["100101"]
+  mitre: ["T1059.001"]
+  severity_min: 8
+
+inputs:
+  host: "{{ alert.agent.name }}"
+  user: "{{ alert.data.win.eventdata.user | default('unknown') }}"
+  cmdline: "{{ alert.data.win.eventdata.commandLine | default('') }}"
+
+steps:
+  - id: decode
+    action: transform.b64_decode
+    with: { field: "{{ inputs.cmdline }}" }
+    on_error: continue
+
+  - id: iocs
+    action: threatintel.extract_iocs
+    with: { text: "{{ steps.decode.output.decoded }}{{ inputs.cmdline }}" }
+    on_error: continue
+
+  - id: vt
+    action: threatintel.virustotal_lookup    # COUCHE 1 — réputation d'IOC
+    with:
+      iocs: "{{ steps.iocs.output }}"
+    on_error: continue          # best-effort : ne doit jamais bloquer le cas
+    timeout_seconds: 15
+
+  - id: intel
+    action: threatintel.lookup               # COUCHE 2 — priorisation sectorielle
+    with: { profile: "gov" }
+    on_error: continue          # best-effort : ne doit jamais bloquer le cas
+    timeout_seconds: 5
+
+  - id: context
+    action: wazuh.get_agent_context
+    with: { agent: "{{ inputs.host }}" }
+    on_error: continue
+
+  - id: risk
+    action: transform.score
+    with:
+      base: "{{ alert.rule.level }}"
+      boosters:
+        - when: "{{ steps.vt.output.worst_verdict == 'malicious' }}"
+          points: 3                            # un IOC confirmé malveillant pèse lourd
+        - when: "{{ steps.decode.output.found }}"
+          points: 2
+        - when: "{{ inputs.user in vars.privileged_users }}"
+          points: 2
+
+  - id: case
+    action: thehive.create_case
+    on_error: fail              # celle-là est critique
+    with:
+      title: "[{{ playbook.id }}] PowerShell encodé — {{ inputs.host }}"
+      description: |
+        Hôte     : {{ inputs.host }} ({{ steps.context.output.ip }})
+        Utilisateur : {{ inputs.user }}
+        Commande : {{ inputs.cmdline }}
+        Décodé   : {{ steps.decode.output.decoded }}
+        Score    : {{ steps.risk.output }}/10
+        VirusTotal : {{ steps.vt.output.worst_verdict }} ({{ steps.vt.output.malicious_count }} IOC malveillant(s))
+        KEV secteur gov : {{ steps.intel.output.kev_count }}
+      severity: 3
+      tlp: 2
+      mitre_tags: ["attack.t1059.001", "attack.execution"]
+      observables:
+        ip: "{{ steps.iocs.output.ips }}"
+        domain: "{{ steps.iocs.output.domains }}"
+        url: "{{ steps.iocs.output.urls }}"
+        hash: "{{ steps.iocs.output.hashes }}"
+
+  - id: approval
+    action: slack.request_approval
+    when: "{{ steps.risk.output >= 9 }}"
+    with:
+      step_id: approval
+      text: "🚨 Isoler *{{ inputs.host }}* ? Score {{ steps.risk.output }}/10 — cas {{ steps.case.output.case_id }}"
+      timeout_seconds: 900
+
+  - id: isolate
+    action: wazuh.isolate_host
+    destructive: true
+    rollback: wazuh.unisolate_host
+    when: "{{ steps.approval.output.approved }}"
+    with:
+      agent: "{{ inputs.host }}"
+      ip: "{{ steps.context.output.ip }}"
+
+  - id: notify
+    action: slack.post
+    with:
+      channel: "#soc-alerts"
+      text: "✅ {{ playbook.id }} — {{ inputs.host }} — cas {{ steps.case.output.case_id }} (score {{ steps.risk.output }}/10)"
+
+outputs:
+  case_id: "{{ steps.case.output.case_id }}"
+  score: "{{ steps.risk.output }}"
+  isolated: "{{ steps.isolate.output is not none }}"
