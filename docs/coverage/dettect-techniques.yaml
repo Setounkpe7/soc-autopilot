@@ -1,0 +1,40 @@
+version: 1.2
+file_type: technique-administration
+name: SOC Autopilot
+platform:
+- Windows
+- Linux
+techniques:
+- technique_id: T1003.001
+  technique_name: ''
+  detection:
+  - applicable_to:
+    - all
+    location:
+    - Wazuh/t1003.001_lsass_memory_access.yml
+    comment: LSASS Memory Access (Credential Dumping)
+    score_logbook:
+    - date: 2026/07/21
+      score: 4
+      comment: Auto-généré depuis les tags Sigma
+- technique_id: T1059.001
+  technique_name: ''
+  detection:
+  - applicable_to:
+    - all
+    location:
+    - Wazuh/t1059.001_powershell_download_cradle_scriptblock.yml
+    comment: PowerShell Download Cradle in ScriptBlock
+    score_logbook:
+    - date: 2026/07/20
+      score: 4
+      comment: Auto-généré depuis les tags Sigma
+  - applicable_to:
+    - all
+    location:
+    - Wazuh/t1059.001_powershell_encoded_command.yml
+    comment: PowerShell Encoded Command Execution
+    score_logbook:
+    - date: 2026/07/21
+      score: 4
+      comment: Auto-généré depuis les tags Sigma

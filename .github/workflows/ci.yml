@@ -46,6 +46,11 @@ jobs:
         run: sigma check detections/windows/
       - name: Chaque règle DOIT déclarer un playbook existant
         run: python tools/check_playbook_links.py
+      - name: Carte ATT&CK dérivée du code — DOIT être à jour (anti-périmé)
+        run: |
+          python tools/sigma_to_dettect.py
+          git diff --exit-code docs/coverage/attack-navigator-layer.json \
+            || { echo "::error::Carte ATT&CK périmée — relance tools/sigma_to_dettect.py et commite docs/coverage/"; exit 1; }
 
   sast:
     runs-on: ubuntu-latest
