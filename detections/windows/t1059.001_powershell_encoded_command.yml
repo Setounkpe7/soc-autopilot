@@ -34,7 +34,15 @@ detection:
       - ' -encodedcommand'
       - ' -EncodedArguments'
       - ' -encodedarguments'
-  condition: selection_proc and selection_encoded
+  filter_legit:
+    # Exclut le PowerShell encodé LÉGITIME lancé par des agents de gestion
+    # (SCCM, Microsoft Monitoring Agent) — c'est le cas-piège du fixture bénin.
+    ParentImage|contains:
+      - 'Microsoft Monitoring Agent'
+      - '\MonitoringHost.exe'
+      - '\ccmexec.exe'
+  condition: selection_proc and selection_encoded and not filter_legit
 falsepositives:
   - Rare administrative or installer tooling that passes base64-encoded commands
 level: high
+response_playbook: PB-0001

@@ -1,0 +1,14 @@
+{
+  "technique": "T1059.001",
+  "test": "1",
+  "source": "Atomic Red Team — télémétrie RÉELLE capturée sur victim-win (ScriptBlock EID 4104 du cradle install-atomicredteam, cf. tests/integration/test_t1059_detonation_match.py).",
+  "events": [
+    {
+      "EventID": 4104,
+      "TimeCreated": "2026-07-20T22:00:01.000Z",
+      "EventData": {
+        "ScriptBlockText": "Set-ExecutionPolicy Bypass -Scope Process -Force IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing)"
+      }
+    }
+  ]
+}

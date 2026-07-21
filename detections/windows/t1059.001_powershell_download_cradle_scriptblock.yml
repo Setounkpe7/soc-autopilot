@@ -32,3 +32,4 @@ detection:
 falsepositives:
   - Administrative or packaging scripts that legitimately download and evaluate code
 level: high
+response_playbook: PB-0001

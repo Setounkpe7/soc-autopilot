@@ -1,0 +1,50 @@
+{
+  "description": "Activité administrative légitime — doit générer ZÉRO alerte. Fixture conçu (pas de la télémétrie d'attaque) pour prouver l'absence de faux positif.",
+  "events": [
+    {
+      "EventID": 1,
+      "TimeCreated": "2026-07-20T09:12:03.000Z",
+      "EventData": {
+        "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "OriginalFileName": "PowerShell.EXE",
+        "CommandLine": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\\Scripts\\Inventory.ps1",
+        "ParentImage": "C:\\Windows\\System32\\taskeng.exe",
+        "User": "CORP\\svc_inventory",
+        "_comment": "PowerShell + Bypass, mais PAS d'encodage → ne doit PAS matcher"
+      }
+    },
+    {
+      "EventID": 1,
+      "TimeCreated": "2026-07-20T09:15:44.000Z",
+      "EventData": {
+        "Image": "C:\\Program Files\\Microsoft Monitoring Agent\\Agent\\powershell.exe",
+        "OriginalFileName": "PowerShell.EXE",
+        "CommandLine": "powershell.exe -enc SQBuAHYAbwBrAGUALQBXAG0AaQBNAGUAdABoAG8AZAA=",
+        "ParentImage": "C:\\Program Files\\Microsoft Monitoring Agent\\Agent\\MonitoringHost.exe",
+        "User": "NT AUTHORITY\\SYSTEM",
+        "_comment": "PowerShell ENCODÉ mais parent = agent de monitoring légitime. Doit être exclu par filter_legit. C'EST LE TEST QUI COMPTE."
+      }
+    },
+    {
+      "EventID": 10,
+      "TimeCreated": "2026-07-20T09:20:10.000Z",
+      "EventData": {
+        "SourceImage": "C:\\Program Files\\Windows Defender\\MsMpEng.exe",
+        "TargetImage": "C:\\Windows\\System32\\lsass.exe",
+        "GrantedAccess": "0x1410",
+        "_comment": "Defender accède à LSASS avec un masque de credential-access — comportement normal. Doit être exclu par filter_signed."
+      }
+    },
+    {
+      "EventID": 1,
+      "TimeCreated": "2026-07-20T09:31:12.000Z",
+      "EventData": {
+        "Image": "C:\\Windows\\System32\\net.exe",
+        "CommandLine": "net user /domain",
+        "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+        "User": "CORP\\jdupont",
+        "_comment": "net user SANS /add → énumération, pas création. Ne doit pas matcher T1136.001."
+      }
+    }
+  ]
+}

@@ -10,6 +10,10 @@ transformations:
       OriginalFileName: data.win.eventdata.originalFileName
       CommandLine: data.win.eventdata.commandLine
       ScriptBlockText: data.win.eventdata.scriptBlockText
+      ParentImage: data.win.eventdata.parentImage
+      SourceImage: data.win.eventdata.sourceImage
+      TargetImage: data.win.eventdata.targetImage
+      GrantedAccess: data.win.eventdata.grantedAccess
 
   - id: sysmon_process_creation_channel
     type: add_condition
@@ -29,4 +33,14 @@ transformations:
     rule_conditions:
       - type: logsource
         category: ps_script
+        product: windows
+
+  - id: sysmon_process_access_channel
+    type: add_condition
+    conditions:
+      "data.win.system.channel": "Microsoft-Windows-Sysmon/Operational"
+      "data.win.system.eventID": "10"
+    rule_conditions:
+      - type: logsource
+        category: process_access
         product: windows
