@@ -169,31 +169,36 @@ class Executor:
         # et les playbooks passent `agent: "{{ alert.agent.name }}"`. Une action
         # qui ciblerait par id numérique devrait normaliser vers le nom en amont.
         if step.destructive:
-            target = str(params.get("agent") or params.get("host") or "")
-            # Fail-fast cible vide : l'enrichissement best-effort est tolérant
-            # (le resolver rend "" plutôt que de lever), mais une action
-            # DESTRUCTIVE ne doit JAMAIS s'exécuter sur une cible vide — typo de
-            # template ou enrichissement manquant rendu "". On restaure ici,
-            # précisément là où ça compte, la garantie « échouer bruyamment plutôt
-            # qu'agir silencieusement sur la mauvaise cible » (cf. resolver.py).
+            raw_target = params.get("agent") or params.get("host")
+            # Fail-fast : une action DESTRUCTIVE ne doit JAMAIS s'exécuter sur une
+            # cible douteuse. On EXIGE une chaîne non vide :
+            #  - "" (typo de template / enrichissement manquant rendu "") → refus,
+            #    « échouer bruyamment plutôt qu'agir sur la mauvaise cible » ;
+            #  - un dict/list (depuis le passthrough d'objet du resolver, un
+            #    `agent: "{{ un_dict }}"` mal écrit) → refus AUSSI : `str(dict)`
+            #    serait non vide et contournerait ce garde ET le garde
+            #    actifs-protégés (jamais == un hostname).
             # On ne l'exige QUE si l'étape DÉCLARE une cible (agent/host) : une
             # action destructive sans cible d'hôte (rare) n'est pas concernée.
             declares_target = bool(step.with_) and (
                 "agent" in step.with_ or "host" in step.with_
             )
-            if declares_target and not target.strip():
-                log.error("destructive_empty_target", step=step.id, params=params)
+            if declares_target and not (
+                isinstance(raw_target, str) and raw_target.strip()
+            ):
+                log.error("destructive_invalid_target", step=step.id, params=params)
                 await self._audit.log_step(
                     ctx.execution_id,
                     step,
                     "failed",
                     params,
-                    {"reason": "empty_target"},
-                    "cible destructive vide après rendu",
+                    {"reason": "invalid_target"},
+                    "cible destructive vide ou non-chaîne après rendu",
                     0,
                 )
-                ctx.steps[step.id] = {"output": None, "error": "empty_target"}
+                ctx.steps[step.id] = {"output": None, "error": "invalid_target"}
                 return "failed"
+            target = str(raw_target or "")
             if target in ctx.settings.protected_assets:
                 log.warning(
                     "destructive_blocked_protected_asset", target=target, step=step.id
