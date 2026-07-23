@@ -42,6 +42,26 @@ def test_no_file_upload_path_exists():
     assert ".put(" not in src
 
 
+async def test_iocs_non_dict_is_tolerated(monkeypatch):
+    """Robustesse liée au resolver best-effort (ChainableUndefined) : si
+    l'extraction d'IOC amont a échoué (`on_error: continue`), le champ résolu
+    `steps.extract.output` rend "" au lieu d'un dict. VT ne doit PAS crasher sur
+    `"".get(...)` — il dégrade proprement en « 0 IOC à vérifier »."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    monkeypatch.setenv("virustotal_api_key", "k")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+    import soc_autopilot.actions.threatintel as ti
+
+    out = await ti.virustotal_lookup({"iocs": ""}, None)
+    assert out["enabled"] is True
+    assert out["checked"] == 0
+    assert out["worst_verdict"] == "unknown"
+
+
 @respx.mock
 async def test_rate_limited_verdict_is_not_cached(monkeypatch):
     """Un 429 est un état client transitoire : ne jamais le cacher (sinon un IOC

@@ -88,6 +88,11 @@ async def virustotal_lookup(params: dict, ctx) -> dict:
         return {"enabled": False, "reason": "no_api_key"}
 
     iocs = params.get("iocs", {})
+    # L'extraction d'IOC amont est best-effort : en échec (`on_error: continue`),
+    # le resolver (ChainableUndefined) rend "" au lieu d'un dict. On dégrade en
+    # « rien à vérifier » plutôt que de crasher sur `"".get(...)`.
+    if not isinstance(iocs, dict):
+        iocs = {}
     # On BORNE le nombre d'IOC pour ne pas cramer le quota sur une seule alerte
     to_check: list[tuple[str, str]] = []
     for h in iocs.get("hashes", [])[:5]:

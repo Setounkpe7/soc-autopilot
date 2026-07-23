@@ -1,10 +1,15 @@
 from typing import Any
 
-from jinja2 import StrictUndefined
+from jinja2 import ChainableUndefined
 from jinja2.sandbox import SandboxedEnvironment
 
 # ⚠️ SandboxedEnvironment, JAMAIS Environment
-_env = SandboxedEnvironment(undefined=StrictUndefined)
+# ChainableUndefined (et non StrictUndefined) : l'enrichissement est best-effort
+# (`on_error: continue`). Une intel/contexte absent ne doit PAS faire crasher le
+# playbook de réponse — `steps.vt.output.worst_verdict` sur un enrichissement en
+# échec rend "" (falsy) au lieu de lever. Les champs critiques restent gardés
+# explicitement par des étapes `on_error: fail`.
+_env = SandboxedEnvironment(undefined=ChainableUndefined)
 
 
 def render(template: str, context: dict[str, Any]) -> Any:

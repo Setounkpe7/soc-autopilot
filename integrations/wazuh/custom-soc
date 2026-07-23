@@ -1,0 +1,19 @@
+#!/bin/sh
+# Wrapper d'intégration Wazuh custom (nom OBLIGATOIREMENT préfixé "custom-").
+# integratord exécute ce fichier ; il délègue au Python EMBARQUÉ de Wazuh pour
+# ne dépendre d'aucun interpréteur système. Passe tous les arguments au .py.
+WPYTHON_BIN="framework/python/bin/python3"
+SCRIPT_PATH_NAME="$0"
+DIR_NAME="$(cd "$(dirname "${SCRIPT_PATH_NAME}")" && pwd -P)"
+SCRIPT_NAME="$(basename "${SCRIPT_PATH_NAME}")"
+
+case "${DIR_NAME}" in
+    */active-response/bin | */wodles*)
+        PYTHON_SCRIPT="${DIR_NAME}/${SCRIPT_NAME}.py"
+        ;;
+    *)
+        PYTHON_SCRIPT="${DIR_NAME}/${SCRIPT_NAME}.py"
+        ;;
+esac
+
+"${DIR_NAME}/../${WPYTHON_BIN}" "${PYTHON_SCRIPT}" "$@"
