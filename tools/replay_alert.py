@@ -63,6 +63,10 @@ def main() -> None:
     ap.add_argument("--url", default="http://127.0.0.1:8000/webhook/wazuh")
     args = ap.parse_args()
 
+    # urllib supporte file:// : on refuse tout schéma non http(s) pour --url.
+    if not args.url.startswith(("http://", "https://")):
+        ap.error("--url doit être http(s)")
+
     alert = build_alert(args.encoded)
     body = json.dumps(alert).encode()
     secret = env("WEBHOOK_HMAC_SECRET").encode()
@@ -74,6 +78,8 @@ def main() -> None:
         headers={"Content-Type": "application/json", "X-Signature": sig},
         method="POST",
     )
+    # --url = argument opérateur local (défaut 127.0.0.1) + schéma restreint à http(s) plus haut.
+    # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     with urllib.request.urlopen(req, timeout=10) as r:
         print("HTTP", r.status)
         print(json.dumps(json.load(r), indent=2, ensure_ascii=False))

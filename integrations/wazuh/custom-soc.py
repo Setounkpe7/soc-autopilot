@@ -30,6 +30,12 @@ def main() -> None:
         sys.exit("usage: custom-soc <alert_file> <hmac_secret> <hook_url>")
     alert_file, secret, hook_url = sys.argv[1], sys.argv[2], sys.argv[3]
 
+    # hook_url vient d'ossec.conf (opérateur). On refuse tout schéma non http(s) :
+    # urllib supporte file://, un schéma inattendu lirait un fichier local au lieu
+    # de POSTer l'alerte.
+    if not hook_url.startswith(("http://", "https://")):
+        sys.exit(f"custom-soc: hook_url doit être http(s), reçu: {hook_url}")
+
     with open(alert_file, encoding="utf-8") as fh:
         alert = json.load(fh)
 
@@ -45,6 +51,8 @@ def main() -> None:
         method="POST",
     )
     try:
+        # hook_url = config opérateur (ossec.conf) + schéma restreint à http(s) plus haut.
+        # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         with urllib.request.urlopen(req, timeout=10) as resp:
             sys.stdout.write(f"custom-soc: webhook HTTP {resp.status}\n")
     except Exception as exc:  # noqa: BLE001 — on ne bloque jamais Wazuh
