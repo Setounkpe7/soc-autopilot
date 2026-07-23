@@ -1,10 +1,21 @@
 from typing import Any
 
-from jinja2 import StrictUndefined
+from jinja2 import ChainableUndefined
 from jinja2.sandbox import SandboxedEnvironment
 
 # ⚠️ SandboxedEnvironment, JAMAIS Environment
-_env = SandboxedEnvironment(undefined=StrictUndefined)
+# ChainableUndefined (et non StrictUndefined) : l'enrichissement est best-effort
+# (`on_error: continue`). Un enrichissement absent ne doit PAS faire crasher le
+# playbook de réponse — `steps.vt.output.worst_verdict` sur une étape en échec
+# (output None) rend "" (falsy) au lieu de lever, y compris quand une étape
+# critique `on_error: fail` (ex. description d'un cas) interpole ce champ.
+#
+# CONTREPARTIE assumée : une typo de template ne lève plus, elle rend "". La
+# garantie « ne jamais agir silencieusement sur la mauvaise cible » n'est donc
+# PLUS assurée par le rendu (`on_error` ne voit pas les erreurs de rendu). Elle
+# est rétablie côté executor, qui REFUSE toute étape `destructive:` dont la cible
+# rendue est vide (garde-fou "destructive_empty_target").
+_env = SandboxedEnvironment(undefined=ChainableUndefined)
 
 
 def render(template: str, context: dict[str, Any]) -> Any:

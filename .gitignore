@@ -22,3 +22,8 @@ kubeconfig
 *.crt
 secrets/
 build/
+
+# Notes perso / prépa entrevue & scraping local — jamais versionné
+.firecrawl/
+docs/interview-prep-cae.md
+docs/mock-interview-prompt-cae.md

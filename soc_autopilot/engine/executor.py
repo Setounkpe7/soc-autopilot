@@ -170,6 +170,30 @@ class Executor:
         # qui ciblerait par id numérique devrait normaliser vers le nom en amont.
         if step.destructive:
             target = str(params.get("agent") or params.get("host") or "")
+            # Fail-fast cible vide : l'enrichissement best-effort est tolérant
+            # (le resolver rend "" plutôt que de lever), mais une action
+            # DESTRUCTIVE ne doit JAMAIS s'exécuter sur une cible vide — typo de
+            # template ou enrichissement manquant rendu "". On restaure ici,
+            # précisément là où ça compte, la garantie « échouer bruyamment plutôt
+            # qu'agir silencieusement sur la mauvaise cible » (cf. resolver.py).
+            # On ne l'exige QUE si l'étape DÉCLARE une cible (agent/host) : une
+            # action destructive sans cible d'hôte (rare) n'est pas concernée.
+            declares_target = bool(step.with_) and (
+                "agent" in step.with_ or "host" in step.with_
+            )
+            if declares_target and not target.strip():
+                log.error("destructive_empty_target", step=step.id, params=params)
+                await self._audit.log_step(
+                    ctx.execution_id,
+                    step,
+                    "failed",
+                    params,
+                    {"reason": "empty_target"},
+                    "cible destructive vide après rendu",
+                    0,
+                )
+                ctx.steps[step.id] = {"output": None, "error": "empty_target"}
+                return "failed"
             if target in ctx.settings.protected_assets:
                 log.warning(
                     "destructive_blocked_protected_asset", target=target, step=step.id

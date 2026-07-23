@@ -74,6 +74,47 @@ async def test_destructive_step_is_dry_run_by_default(monkeypatch):
     assert ran["called"] is False  # dry_run=True → action NOT executed
 
 
+async def test_destructive_empty_target_is_blocked(monkeypatch):
+    """Garde-fou : une étape destructive dont la cible rend "" (typo de template
+    ou enrichissement manquant) est REFUSÉE — jamais exécutée, statut failed.
+    Restaure la garantie « ne jamais agir silencieusement sur la mauvaise cible »
+    que la tolérance ChainableUndefined du resolver, seule, ne fournit plus."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+
+    ran = {"called": False}
+
+    @registry.action("test.destroy_blank")
+    async def _destroy_blank(params, ctx):
+        ran["called"] = True
+        return {"did": "it"}
+
+    pb = Playbook(
+        id="PB-0005",
+        name="n",
+        version="1.0",
+        trigger={},
+        steps=[
+            {
+                "id": "s1",
+                "action": "test.destroy_blank",
+                "destructive": True,
+                "with": {"agent": "{{ inputs.absent }}"},  # rend ""
+            }
+        ],
+    )
+    audit = _FakeAudit()
+    result = await Executor(audit).run(pb, {"id": "a-blank"})
+    assert ran["called"] is False  # jamais exécuté sur cible vide
+    assert result["status"] == "failed"
+    # audité comme échec explicite, pas comme skip silencieux
+    assert "failed" in [a[2] for a, _k in audit.steps]
+
+
 async def test_dedup_short_circuits_second_run(monkeypatch):
     monkeypatch.setenv("webhook_hmac_secret", "x")
     monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")

@@ -1,0 +1,23 @@
+<!--
+  Config Sysmon MINIMALE et TEMPORAIRE — capture ponctuelle T1003.001.
+  But unique : journaliser EID 10 (ProcessAccess) vers lsass.exe pour capturer
+  la télémétrie de `procdump -ma lsass.exe`.
+  À appliquer AVANT la détonation, puis RESTAURER la config d'origine après :
+      Sysmon64.exe -c C:\Tools\Sysmon\lsass-capture-sysmon.xml   (cette config)
+      ... détonation + capture ...
+      Sysmon64.exe -c C:\Tools\Sysmon\sysmonconfig.xml           (config d'origine)
+
+  schemaversion : conservateur (4.50) — Sysmon récent (v13+/4.9) accepte les schémas
+  plus anciens. Si Sysmon refuse la version, remplace 4.50 par la valeur exacte lue
+  en haut de ton sysmonconfig.xml d'origine (<Sysmon schemaversion="X.XX">).
+-->
+<Sysmon schemaversion="4.50">
+  <EventFiltering>
+    <RuleGroup name="LSASS-Access-Capture" groupRelation="or">
+      <ProcessAccess onmatch="include">
+        <!-- Toute ouverture de handle vers lsass = signal T1003.001 -->
+        <TargetImage condition="image">lsass.exe</TargetImage>
+      </ProcessAccess>
+    </RuleGroup>
+  </EventFiltering>
+</Sysmon>
