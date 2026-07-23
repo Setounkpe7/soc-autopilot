@@ -115,6 +115,45 @@ async def test_destructive_empty_target_is_blocked(monkeypatch):
     assert "failed" in [a[2] for a, _k in audit.steps]
 
 
+async def test_destructive_dict_target_is_blocked(monkeypatch):
+    """Depuis le passthrough d'objet du resolver, un `agent: "{{ alert.agent }}"`
+    (au lieu de `.name`) résout un DICT. Il ne doit PAS passer : `str(dict)` est non
+    vide et contournerait le fail-fast cible-vide ET le garde actifs-protégés. Une
+    cible destructive doit être une chaîne non vide."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+
+    ran = {"called": False}
+
+    @registry.action("test.destroy_dict")
+    async def _destroy_dict(params, ctx):
+        ran["called"] = True
+        return {"did": "it"}
+
+    pb = Playbook(
+        id="PB-0004",
+        name="n",
+        version="1.0",
+        trigger={},
+        steps=[
+            {
+                "id": "s1",
+                "action": "test.destroy_dict",
+                "destructive": True,
+                "with": {"agent": "{{ alert.agent }}"},  # dict, pas alert.agent.name
+            }
+        ],
+    )
+    audit = _FakeAudit()
+    result = await Executor(audit).run(pb, {"id": "a", "agent": {"name": "VICTIM-WIN"}})
+    assert ran["called"] is False  # jamais exécuté sur une cible dict
+    assert result["status"] == "failed"
+
+
 async def test_dedup_short_circuits_second_run(monkeypatch):
     monkeypatch.setenv("webhook_hmac_secret", "x")
     monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")

@@ -64,3 +64,39 @@ def test_render_dict_recurses_into_list_of_dicts():
     out = render_dict(data, {"flag": True})
     assert out["boosters"][0]["when"] == "True"
     assert out["boosters"][0]["points"] == 2
+
+
+def test_pure_expression_returns_dict_object():
+    """Une expression pure `{{ x }}` qui résout un DICT doit rendre le dict, pas sa
+    repr stringifiée : sinon `iocs: "{{ steps.iocs.output }}"` arrive à l'action VT
+    comme une str et l'enrichissement ne s'exécute jamais (bug de flux réel)."""
+    ctx = {"steps": {"iocs": {"output": {"ips": ["1.2.3.4"], "hashes": ["a" * 64]}}}}
+    out = render("{{ steps.iocs.output }}", ctx)
+    assert isinstance(out, dict)
+    assert out["ips"] == ["1.2.3.4"]
+    assert out["hashes"] == ["a" * 64]
+
+
+def test_pure_expression_returns_list_object():
+    """`{{ steps.iocs.output.ips }}` doit rendre la LISTE, pas '['1.2.3.4']'."""
+    ctx = {"steps": {"iocs": {"output": {"ips": ["1.2.3.4", "5.6.7.8"]}}}}
+    out = render("{{ steps.iocs.output.ips }}", ctx)
+    assert isinstance(out, list)
+    assert out == ["1.2.3.4", "5.6.7.8"]
+
+
+def test_mixed_template_still_stringifies():
+    """Un template MIXTE (texte + expression, ou plusieurs expressions) reste une
+    chaîne — le passthrough d'objet ne concerne QUE l'expression pure unique."""
+    ctx = {"steps": {"iocs": {"output": {"ips": ["1.2.3.4"]}}}}
+    out = render("IOC: {{ steps.iocs.output.ips }} détecté", ctx)
+    assert isinstance(out, str)
+    assert "1.2.3.4" in out
+
+
+def test_pure_expression_path_still_sandboxed():
+    """Garde de sécurité : le nouveau chemin (compile_expression) DOIT rester
+    sandboxé. Une évasion qui renvoie une LISTE de classes ne doit pas fuiter via
+    le passthrough d'objet — elle doit lever SecurityError avant tout retour."""
+    with pytest.raises(SecurityError):
+        render("{{ ''.__class__.__mro__[1].__subclasses__() }}", {})
