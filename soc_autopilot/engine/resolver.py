@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from jinja2 import ChainableUndefined
@@ -17,17 +18,35 @@ from jinja2.sandbox import SandboxedEnvironment
 # rendue est vide (garde-fou "destructive_empty_target").
 _env = SandboxedEnvironment(undefined=ChainableUndefined)
 
+# Template réduit à UNE seule expression `{{ … }}` (rien autour). `.+?` + ancre
+# `$` : si un second `{{` suit, il tombe dans le groupe et on retombe (à raison)
+# sur le rendu chaîne. Sert à décider si on peut rendre l'OBJET plutôt que sa repr.
+_PURE_EXPR = re.compile(r"^\s*\{\{(?P<expr>.+?)\}\}\s*$", re.DOTALL)
+
 
 def render(template: str, context: dict[str, Any]) -> Any:
     """Rend un template Jinja2 en environnement sandboxé.
 
-    Retourne TOUJOURS la chaîne rendue telle quelle (pas de coercion), pour ne
-    jamais corrompre un paramètre : un id d'agent zero-paddé comme "001" doit
-    rester "001", pas devenir l'entier 1. La coercion bool/int est réservée à
-    `evaluate()`, qui traite des conditions `when:`.
+    Cas général : retourne la CHAÎNE rendue (pas de coercion), pour ne jamais
+    corrompre un scalaire — un id zero-paddé "001" reste "001", pas l'entier 1.
+
+    Exception : une expression PURE unique (`{{ x }}`, rien autour) qui résout un
+    CONTENEUR (dict/list) retourne l'objet tel quel. Sinon `iocs: "{{ steps.iocs
+    .output }}"` arriverait à l'action VirusTotal comme la repr `"{'ips': …}"` et
+    l'enrichissement ne s'exécuterait jamais. Les scalaires gardent le rendu
+    chaîne (comportement inchangé). La coercion bool/int reste réservée à
+    `evaluate()` (conditions `when:`).
     """
     if not isinstance(template, str) or "{{" not in template:
         return template
+    m = _PURE_EXPR.match(template)
+    if m and "{%" not in template and "{{" not in m.group("expr"):
+        # compile_expression est TOUJOURS sandboxé (cf.
+        # test_pure_expression_path_still_sandboxed) : une évasion lève
+        # SecurityError avant tout retour, y compris si elle renvoie une liste.
+        value = _env.compile_expression(m.group("expr").strip())(**context)
+        if isinstance(value, (dict, list)):
+            return value
     return _env.from_string(template).render(**context)
 
 

@@ -99,7 +99,11 @@ steps:
     action: slack.post
     with:
       channel: "#soc-alerts"
-      text: "✅ {{ playbook.id }} — {{ inputs.host }} — cas {{ steps.case.output.case_id }} (score {{ steps.risk.output }}/10)"
+      # `| default(...)` : les enrichissements sont best-effort ; s'ils ont échoué
+      # (output None → champ non défini), on affiche 'n/a'/0 au lieu d'un vide.
+      text: |-
+        ✅ {{ playbook.id }} — {{ inputs.host }} — cas {{ steps.case.output.case_id }} (score {{ steps.risk.output }}/10)
+        🔎 VirusTotal : {{ steps.vt.output.worst_verdict | default('n/a') }} ({{ steps.vt.output.malicious_count | default(0) }} IOC malveillant·s) · KEV gov : {{ steps.intel.output.kev_count | default(0) }}
 
 outputs:
   case_id: "{{ steps.case.output.case_id }}"

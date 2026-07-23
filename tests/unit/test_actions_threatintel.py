@@ -65,6 +65,50 @@ async def test_iocs_non_dict_returns_error_not_clean(monkeypatch):
 
 
 @respx.mock
+async def test_virustotal_enriches_iocs_passed_via_template(monkeypatch):
+    """Régression du flux RÉEL : PB-0001 passe `iocs: "{{ steps.iocs.output }}"`.
+    Après le passthrough d'objet du resolver, VT reçoit un DICT et enrichit
+    vraiment (avant : il recevait la repr stringifiée et ne vérifiait rien)."""
+    monkeypatch.setenv("webhook_hmac_secret", "x")
+    monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("threat_intel_url", "http://ti")
+    monkeypatch.setenv("virustotal_api_key", "k")
+    from soc_autopilot import config as cfg
+
+    cfg.get_settings.cache_clear()
+    import soc_autopilot.actions.threatintel as ti
+    from soc_autopilot.engine.resolver import render_dict
+
+    ti._VT_CACHE.clear()
+    h = "a" * 64
+    respx.get(f"https://www.virustotal.com/api/v3/files/{h}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": {
+                    "attributes": {
+                        "last_analysis_stats": {
+                            "malicious": 40,
+                            "suspicious": 0,
+                            "harmless": 30,
+                            "undetected": 0,
+                        }
+                    }
+                }
+            },
+        )
+    )
+    # Le param EXACTEMENT tel qu'écrit dans PB-0001, rendu par le resolver.
+    ctx = {"steps": {"iocs": {"output": {"hashes": [h], "ips": [], "domains": []}}}}
+    params = render_dict({"iocs": "{{ steps.iocs.output }}"}, ctx)
+    assert isinstance(params["iocs"], dict)  # le fix : dict, pas str
+    out = await ti.virustotal_lookup(params, None)
+    assert out["checked"] == 1  # VT a RÉELLEMENT interrogé le hash
+    assert out["worst_verdict"] == "malicious"
+    assert out["malicious_count"] == 1
+
+
+@respx.mock
 async def test_rate_limited_verdict_is_not_cached(monkeypatch):
     """Un 429 est un état client transitoire : ne jamais le cacher (sinon un IOC
     malveillant serait masqué jusqu'au TTL)."""
