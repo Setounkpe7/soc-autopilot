@@ -42,11 +42,12 @@ def test_no_file_upload_path_exists():
     assert ".put(" not in src
 
 
-async def test_iocs_non_dict_is_tolerated(monkeypatch):
-    """Robustesse liée au resolver best-effort (ChainableUndefined) : si
-    l'extraction d'IOC amont a échoué (`on_error: continue`), le champ résolu
-    `steps.extract.output` rend "" au lieu d'un dict. VT ne doit PAS crasher sur
-    `"".get(...)` — il dégrade proprement en « 0 IOC à vérifier »."""
+async def test_iocs_non_dict_returns_error_not_clean(monkeypatch):
+    """Dans les playbooks `iocs` arrive comme str (le resolver stringifie
+    `{{ steps.iocs.output }}`). VT ne doit PAS crasher sur `"".get(...)`, mais il
+    ne doit surtout PAS renvoyer un `unknown` qui ressemble à un scan propre : un
+    échec d'enrichissement se signale par un verdict `error` explicite (leçon de
+    la revue PR #3 — un état d'erreur ne doit jamais imiter un résultat bénin)."""
     monkeypatch.setenv("webhook_hmac_secret", "x")
     monkeypatch.setenv("database_url", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("threat_intel_url", "http://ti")
@@ -59,7 +60,8 @@ async def test_iocs_non_dict_is_tolerated(monkeypatch):
     out = await ti.virustotal_lookup({"iocs": ""}, None)
     assert out["enabled"] is True
     assert out["checked"] == 0
-    assert out["worst_verdict"] == "unknown"
+    assert out["worst_verdict"] == "error"  # jamais un faux "unknown"
+    assert out["reason"] == "iocs_not_dict"
 
 
 @respx.mock

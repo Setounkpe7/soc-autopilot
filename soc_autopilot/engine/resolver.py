@@ -5,10 +5,16 @@ from jinja2.sandbox import SandboxedEnvironment
 
 # ⚠️ SandboxedEnvironment, JAMAIS Environment
 # ChainableUndefined (et non StrictUndefined) : l'enrichissement est best-effort
-# (`on_error: continue`). Une intel/contexte absent ne doit PAS faire crasher le
-# playbook de réponse — `steps.vt.output.worst_verdict` sur un enrichissement en
-# échec rend "" (falsy) au lieu de lever. Les champs critiques restent gardés
-# explicitement par des étapes `on_error: fail`.
+# (`on_error: continue`). Un enrichissement absent ne doit PAS faire crasher le
+# playbook de réponse — `steps.vt.output.worst_verdict` sur une étape en échec
+# (output None) rend "" (falsy) au lieu de lever, y compris quand une étape
+# critique `on_error: fail` (ex. description d'un cas) interpole ce champ.
+#
+# CONTREPARTIE assumée : une typo de template ne lève plus, elle rend "". La
+# garantie « ne jamais agir silencieusement sur la mauvaise cible » n'est donc
+# PLUS assurée par le rendu (`on_error` ne voit pas les erreurs de rendu). Elle
+# est rétablie côté executor, qui REFUSE toute étape `destructive:` dont la cible
+# rendue est vide (garde-fou "destructive_empty_target").
 _env = SandboxedEnvironment(undefined=ChainableUndefined)
 
 

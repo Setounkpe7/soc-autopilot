@@ -88,11 +88,22 @@ async def virustotal_lookup(params: dict, ctx) -> dict:
         return {"enabled": False, "reason": "no_api_key"}
 
     iocs = params.get("iocs", {})
-    # L'extraction d'IOC amont est best-effort : en échec (`on_error: continue`),
-    # le resolver (ChainableUndefined) rend "" au lieu d'un dict. On dégrade en
-    # « rien à vérifier » plutôt que de crasher sur `"".get(...)`.
+    # Dans les playbooks `iocs` est passé via un template (`{{ steps.iocs.output }}`)
+    # que le resolver STRINGIFIE : il arrive comme str, pas comme dict. Plutôt que
+    # crasher sur `"".get(...)`, on renvoie un verdict d'ERREUR explicite — un échec
+    # d'enrichissement ne doit JAMAIS ressembler à un scan propre (`unknown`).
+    # NB : faire réellement enrichir VT exige de passer l'objet dict sans le
+    # stringifier (passthrough d'expression pure côté resolver) — hors périmètre,
+    # suivi séparément.
     if not isinstance(iocs, dict):
-        iocs = {}
+        return {
+            "enabled": True,
+            "checked": 0,
+            "malicious_count": 0,
+            "worst_verdict": "error",
+            "reason": "iocs_not_dict",
+            "results": [],
+        }
     # On BORNE le nombre d'IOC pour ne pas cramer le quota sur une seule alerte
     to_check: list[tuple[str, str]] = []
     for h in iocs.get("hashes", [])[:5]:
